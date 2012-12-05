@@ -26,10 +26,6 @@
 
 namespace vigil {
 
-/** \ingroup noxevents
- *
- */
-
 struct Flow_mod_event
     : public Event,
       public Ofp_msg_event,

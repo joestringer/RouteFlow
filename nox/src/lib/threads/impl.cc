@@ -29,7 +29,6 @@
 #include <semaphore.h>
 #include <signal.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -501,9 +500,7 @@ co_yield(void)
 
     co_might_yield();
     if (group && !group->ready_list.empty()) {
-        if(!(thread->flags & COTF_READY)) { 
-          make_ready(thread);
-        } 
+        make_ready(thread);
         schedule();
     }
 }
@@ -1593,6 +1590,7 @@ do_schedule()
 
                 /* We use a signal to wake up, thus no loop on EINTR here. */
                 n_events = ppoll->poll(group->pollfds, timeoutp);
+                assert(n_events >= 0 || errno == EINTR);
                 if (n_events == 0) {
                     wakeup_timers(&timeout, &timeoutp);
                 }
@@ -1692,7 +1690,7 @@ process_poll_results(int n_events)
                 // Its unclear whether it is expected for the reactor to
                 // handle this correctly or this in an error condition.
                 // For now, print an erro and ignore.
-                lg.dbg("invalid fd in poll loop: %d", pfd->fd);
+                lg.err("invalid fd in poll loop: %d", pfd->fd);
                 // NOT_REACHED();
             }
             n_events--;
@@ -1819,6 +1817,7 @@ static void
 make_ready(struct co_thread *thread)
 {
     struct co_group *group = co_group_self();
+
     assert(!(thread->flags & (COTF_BLOCKING | COTF_READY)));
     thread->iter = group->ready_list.insert(group->ready_list.end(), thread);
     thread->flags |= COTF_READY;

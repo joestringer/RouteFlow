@@ -29,10 +29,6 @@ static Vlog_module lg("flow_classifier");
 bool
 Flow_expr::is_wildcard(uint32_t field) const
 {
-    if (field == Flow_expr::APPLY_SIDE) {
-        return apply_side == ALWAYS_APPLY;
-    }
-
     uint32_t n = m_preds.size();
 
     for (int i = 0; i < n; i++) {
@@ -47,12 +43,6 @@ Flow_expr::is_wildcard(uint32_t field) const
 bool
 Flow_expr::splittable(uint32_t path) const
 {
-    if (apply_side != ALWAYS_APPLY) {
-        if ((path & Cnode<Flow_expr, Flow_action>::MASKS[Flow_expr::APPLY_SIDE]) == 0) {
-            return true;
-        }
-    }
-
     uint32_t n = m_preds.size();
 
     for (int i = 0; i < n; i++) {
@@ -68,14 +58,6 @@ Flow_expr::splittable(uint32_t path) const
 bool
 Flow_expr::get_field(uint32_t field, uint32_t& value) const
 {
-    if (field == Flow_expr::APPLY_SIDE) {
-        if (apply_side != ALWAYS_APPLY) {
-            value = apply_side;
-            return true;
-        }
-        return false;
-    }
-
     uint32_t n = m_preds.size();
 
     for (int i = 0; i < n; i++) {
@@ -98,12 +80,6 @@ Flow_expr::set_pred(uint32_t i, Pred_t type, uint64_t value)
     m_preds[i].type = type;
     m_preds[i].val = value;
     return true;
-}
-
-bool
-Flow_expr::set_pred(uint32_t i, Pred_t type, int64_t value)
-{
-    return set_pred(i, type, (int64_t) value);
 }
 
 bool
@@ -177,14 +153,14 @@ Flow_action::set_arg(uint64_t value)
 }
 
 bool
-Flow_action::set_arg(const C_func_t& fn)
+Flow_action::set_arg(const Flow_fn_map::Flow_fn& fn)
 {
     arg = fn;
     return true;
 }
 
 Flow_util::Flow_util(const container::Context* c,
-                     const json_object*)
+                     const xercesc::DOMNode*)
     : Component(c)
 {}
 

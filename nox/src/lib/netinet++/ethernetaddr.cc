@@ -52,11 +52,8 @@ ethernetaddr::init_from_string(const char* str)
             ++str;
         }
 
-        if (i != 5 && *str != '-' && *str != ':') {
+        if (i != 5 && *str++ != ':') {
             goto error;
-        }
-        if (i < 5) {
-            ++str;
         }
     }
     if (*str) {

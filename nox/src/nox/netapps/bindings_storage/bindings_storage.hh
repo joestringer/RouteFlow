@@ -22,8 +22,7 @@
 #include <string>
 
 #include "component.hh"
-#include "data/datatypes.hh"
-#include "data/datacache.hh"
+#include "authenticator/name_manager.hh"
 #include "netinet++/ethernetaddr.hh"
 #include "serial_op_queue.hh"
 #include "storage/storage.hh"
@@ -40,7 +39,7 @@ namespace vigil {
 namespace applications {
 
 struct nwhost {
-    int64_t host;
+    uint32_t host;
     std::list<uint32_t> nwaddrs;
 };
 
@@ -115,18 +114,17 @@ struct Link {
 struct Name {
     enum Type { NONE = 0, LOCATION, HOST, USER, SWITCH, PORT, LOC_TUPLE,
                 LOCATION_GROUP, HOST_GROUP, USER_GROUP, SWITCH_GROUP };
-    Name(const std::string &n, Type t, int64_t i=-1) : name(n), name_type(t), id(i) {}
+    Name(const std::string &n, Type t) : name(n), name_type(t) {}
 
     std::string name;
     Type name_type;
-    int64_t id;
 
     bool operator==(const Name &o) const {
-        return (name == o.name && name_type == o.name_type && id == o.id);
+        return (name == o.name && name_type == o.name_type);
     }
     // just for sorting to eliminate duplicates
     bool operator<(const Name &o) const {
-        return (id == o.id) ? (name_type < o.name_type) : (id < o.id);
+        return (name == o.name) ? (name_type < o.name_type) : (name < o.name);
     }
 };
 
@@ -145,7 +143,7 @@ typedef boost::function<void(LocationList&)> Get_locations_callback;
 // serially, so they should use Serial_Ops.
 
 enum GetBindingsState { GET_LOCATIONS, GET_DLADDRS_BY_LOC, GET_DLADDRS_BY_HOST,
-                        GET_HOSTS_BY_DLADDR, GET_HOSTS_BY_USER, GET_USERS, DONE };
+                        GET_HOSTS_BY_DLADDR, GET_HOSTS_BY_USER, GET_USERS };
 
 struct Get_Bindings_Op;
 typedef boost::shared_ptr<Get_Bindings_Op> Get_Bindings_Op_ptr;
@@ -162,10 +160,10 @@ struct Get_Bindings_Op {
         : callback(cb), cur_state(cur_state_), loc_tuples(loc_tuples_),
           filter(filter_), index(0) {}
 
-    hash_map<int64_t, std::list<int64_t> > host_users;
+    hash_map<uint32_t, std::list<uint32_t> > host_users;
     hash_map<uint64_t, std::list<nwhost> > dladdr_nwhosts;
-    hash_map<uint64_t, std::list<int64_t> > dladdr_locations;
-    hash_map<int64_t, Loc> location_info;
+    hash_map<uint64_t, std::list<uint32_t> > dladdr_locations;
+    hash_map<uint32_t, Loc> location_info;
 
     Get_bindings_callback callback;
     GetBindingsState cur_state;
@@ -181,7 +179,6 @@ struct Get_All_Names_Op {
 
     Get_names_callback callback;
     Name::Type name_type;
-    PrincipalType principal_type;
     bool check_type;
     std::string attr;
     NameList names_found; // names found so far
@@ -228,35 +225,33 @@ struct Get_Loc_By_Name_Op {
 typedef boost::shared_ptr<Get_Loc_By_Name_Op> Get_Loc_By_Name_Op_ptr;
 
 
-/** \ingroup noxcomponents
- *
- *
- * Bindings_Storage mirrors the Authenticator's internal data structures
- * within the NDB.  This serves two goals:  1) this data can be archived to
- * reconstruct network state at a later point in time, and 2) other
- * components can query the current binding state via Bindings_Storage
- * interfaces.
- *
- * To manage names, the component has NDB tables:<br>
- * <br>
- * | host (int), user (int) |<br>
- * | host (int), dladdr (int), nwaddr (int) |<br>
- * | dladdr (int), location (int) |<br>
- * <br>
- * All operations that add or remove name binding state are serialized by
- * Bindings_Storage, so that no such operations run in parallel, though
- * this serialization is hidden from the caller.  Thus, if two subsequent
- * calls both add binding state, the modifications to NDB state from the
- * first complete before the NDB modifications specified by the second
- * call begin.  Likewise, if the component receives an add and then a remove,
- * it will complete all NDB operations for the add before processing the
- * remove.  Calls to lookup NDB state are not serialized, so if an add is
- * followed quickly by a get, the get result may not include data from the
- * add.
- *
- *
- * TODO: document the bindings_location and bindings_link tables.
- */
+// main class
+//
+// Bindings_Storage mirrors the Authenticator's internal data structures
+// within the NDB.  This serves two goals:  1) this data can be archived to
+// reconstruct network state at a later point in time, and 2) other
+// components can query the current binding state via Bindings_Storage
+// interfaces.
+//
+// To manage names, the component has NDB tables:
+//
+// | host (int), user (int) |
+// | host (int), dladdr (int), nwaddr (int) |
+// | dladdr (int), location (int) |
+//
+// All operations that add or remove name binding state are serialized by
+// Bindings_Storage, so that no such operations run in parallel, though
+// this serialization is hidden from the caller.  Thus, if two subsequent
+// calls both add binding state, the modifications to NDB state from the
+// first complete before the NDB modifications specified by the second
+// call begin.  Likewise, if the component receives an add and then a remove,
+// it will complete all NDB operations for the add before processing the
+// remove.  Calls to lookup NDB state are not serialized, so if an add is
+// followed quickly by a get, the get result may not include data from the
+// add.
+//
+// TODO: document the bindings_location and bindings_link tables.
+//
 
 
 class Bindings_Storage
@@ -271,7 +266,7 @@ public:
     static const std::string LINK_TABLE_NAME;
     static const std::string LOCATION_TABLE_NAME;
 
-    Bindings_Storage(const container::Context* c,const json_object*);
+    Bindings_Storage(const container::Context* c,const xercesc::DOMNode*);
 
     void configure(const container::Configuration*);
     void install();
@@ -286,15 +281,15 @@ public:
     // use this sparingly.
     void get_all_names(Name::Type name_type, const Get_names_callback &cb);
 
-    void store_location_binding(const ethernetaddr& dladdr, int64_t location);
-    void store_host_binding(int64_t host, const ethernetaddr& dladdr,
+    void store_location_binding(const ethernetaddr& dladdr, uint32_t location);
+    void store_host_binding(uint32_t host, const ethernetaddr& dladdr,
                             uint32_t nwaddr);
-    void store_user_binding(int64_t user, int64_t host);
+    void store_user_binding(uint32_t user, uint32_t host);
 
-    void remove_location_binding(const ethernetaddr& dladdr, int64_t location);
-    void remove_host_binding(int64_t host, const ethernetaddr& dladdr,
+    void remove_location_binding(const ethernetaddr& dladdr, uint32_t location);
+    void remove_host_binding(uint32_t host, const ethernetaddr& dladdr,
                              uint32_t nwaddr);
-    void remove_user_binding(int64_t user, int64_t host);
+    void remove_user_binding(uint32_t user, uint32_t host);
 
      // does a lookup based on a network identifier and finds all USER
      // or HOST names associated with it.  Because this call hits the NDB,
@@ -312,16 +307,11 @@ public:
     void get_names(const storage::Query &query,
                    bool loc_tuples, const Get_names_callback &cb);
 
-    void get_host_users(int64_t hostname,
-                        const Get_names_callback& cb);
-    void get_user_hosts(int64_t username,
-                        const Get_names_callback& cb);
-
     // does a lookup based on a principal name and calls back
     // with a list of NetEntity Objects
     // Valid principal types are (USER, HOST, LOCATION, PORT).
-    void get_entities_by_name(int64_t name, Name::Type name_type,
-                              const Get_entities_callback &ge_cb);
+    void get_entities_by_name(const std::string& name, Name::Type name_type,
+                               const Get_entities_callback &ge_cb);
 
     // removes all host name binding state stored by the component
     void clear_bindings();
@@ -348,13 +338,13 @@ public:
     // add a switch/location as indicated by name_type
     // If name_type is Name::SWITCH, the port field is ignored
     void add_name_for_location(const datapathid &dpid, uint16_t port,
-                               int64_t name, Name::Type name_type);
+                               uint32_t name, Name::Type name_type);
 
     // remove a switch/location as indicated by name_type
     // if name == 0, removes all names for this switch/location.
     // If name_type is Name::SWITCH, the port field is ignored
     void remove_name_for_location(const datapathid &dpid, uint16_t port,
-                                  int64_t name, Name::Type name_type);
+                                  uint32_t name, Name::Type name_type);
 
     // find all names of type 'name_type' associated this this
     // 'dpid' and 'port' (if name_type is Name::SWITCH, port
@@ -368,7 +358,7 @@ public:
     // returns a list of location objects that are associated with
     // a particular name.  If name_type is Name::SWITCH only
     // the dpid of the location object will be valid.
-    void get_location_by_name(int64_t locationname, Name::Type name_type,
+    void get_location_by_name(const std::string &name, Name::Type name_type,
                               const Get_locations_callback &cb);
 
     // utility function
@@ -378,8 +368,7 @@ public:
 
 private:
     storage::Async_storage *np_store;
-    Datatypes *datatypes;
-    Data_cache *data_cache;
+    NameManager *namemanager;
 
     Serial_Op_Queue host_serial_queue;
     Serial_Op_Queue user_serial_queue;
@@ -404,8 +393,6 @@ private:
     void return_loctuples(NameList& names,
                           const Get_Bindings_Op_ptr& bindings,
                           const Get_names_callback& cb);
-    void return_host_users(const Get_Bindings_Op_ptr& bindings,
-                           bool ret_users, const Get_names_callback& cb);
     void return_names(const Get_Bindings_Op_ptr& bindings,
                       const Get_names_callback& cb);
     void return_entities(const Get_Bindings_Op_ptr& bindings,
@@ -524,10 +511,9 @@ template <>
 inline
 PyObject *to_python(const Name &n) {
 
-    PyObject* main_tuple = PyTuple_New(3);
+    PyObject* main_tuple = PyTuple_New(2);
     PyTuple_SetItem(main_tuple,0,to_python(n.name));
     PyTuple_SetItem(main_tuple,1,to_python((int)n.name_type));
-    PyTuple_SetItem(main_tuple,2,to_python((int)n.id));
     return main_tuple;
 }
 

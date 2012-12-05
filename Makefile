@@ -13,8 +13,10 @@ export RFLIB_NAME=rflib
 export libdirs := ipc types openflow
 export srcdirs := rfclient
 
-export CPP := g++
 export CFLAGS := -Wall -W
+export CPP := g++
+export CPPFLAGS := -fPIC
+export LDFLAGS := -fPIC
 export AR := ar
 
 all: build lib app nox
@@ -59,7 +61,7 @@ nox: lib
 	mkdir build; \
 	cd build; \
 	export CPP=; \
-	../configure --enable-ndebug; \
+	../configure --enable-ndebug --with-python; \
 	make -C $(RFC_DIR)/build; \
 	echo "done."
 

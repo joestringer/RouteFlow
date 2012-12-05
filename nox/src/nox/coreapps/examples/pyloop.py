@@ -26,8 +26,17 @@ class Pyloop(Component):
         Component.__init__(self, ctxt)
 
     def install(self):
-        import code
-        code.interact()
+        # use exception trick to pick up the current frame
+        import code, sys
+        try:
+            raise None
+        except:
+            frame = sys.exc_info()[2].tb_frame.f_back
+
+        # drop to the console with all of our local and global variables visible
+        namespace = frame.f_globals.copy()
+        namespace.update(frame.f_locals)
+        code.interact(banner="dropping to interpreter in function xyz ...", local=namespace)
 
     def getInterface(self):
         return str(Pyloop)

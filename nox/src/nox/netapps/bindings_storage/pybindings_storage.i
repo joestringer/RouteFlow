@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -59,10 +59,6 @@ using namespace vigil::applications;
   from twisted.internet import defer 
   from twisted.python.failure import Failure
   from nox.lib.netinet.netinet import *
-
-  import logging
-
-  lg = logging.getLogger('nox.netapps.bindings_storage')
  
   class pybindings_storage(Component):
       """
@@ -96,12 +92,6 @@ using namespace vigil::applications;
       def get_all_names(self, name_type, cb):
           self.proxy.get_all_names(name_type, cb) 
 
-      def get_host_users(self, hostname, cb):
-          self.proxy.get_host_users(hostname, cb) 
-
-      def get_user_hosts(self, username, cb):
-          self.proxy.get_user_hosts(username, cb) 
-
       # callback gets a list of (dpid,port,mac,ip) tuples
       def get_entities_by_name(self, name, name_type, cb):
           self.proxy.get_entities_by_name(name, name_type, cb)
@@ -122,7 +112,7 @@ using namespace vigil::applications;
         self.proxy.get_links(dpid, port, cb)
     
       def clear_links(self):
-          self.proxy.clear_links()
+        self.proxy.clear_links()
 
       def get_names_for_location(self, dpid, port, name_type, cb):
           self.proxy.get_names_for_location(dpid, port, name_type, cb)
@@ -166,9 +156,9 @@ using namespace vigil::applications;
             d.callback(matching) 
 
         def process_names(names): 
-            for name, type, id in names: 
+            for name, type in names:
               if type == Name.HOST: 
-                self.get_entities_by_name(id, type, filter_netinfos)
+                self.get_entities_by_name(name, type, filter_netinfos)
                 return
             ip_obj = ipaddr(ip)
             d.errback(Failure("no hostname in binding storage for IP : %s" \

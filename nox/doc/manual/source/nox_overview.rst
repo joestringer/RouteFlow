@@ -16,7 +16,7 @@ following:
 
 * Developers can add their own control software and, unlike standard \*nix based router environments, NOX provides an interface for managing off the shelf hardware switches at line speeds.
 
-* NOX provides a **central programming model for an entire network** -- one program can control the forwarding decisions on all switches on the network. This makes program development much easier than in the standard distributed fashion.
+* NOX provides a **linear programming model for an entire network** -- one program can control the forwarding decisions on all switches on the network. This makes program development much easier than in the standard distributed fashion.
 
 How? 
 ------
@@ -31,17 +31,17 @@ programs (which we call *applications*) can run. These applications can
 hook into network events, gain access to traffic, control the switch
 forwarding decisions, and generate traffic.
 
-NOX applications control the network by using OpenFlow to configure each
-switch's flow table.  This configuration can be set up reactively for
-each new flow on the network, or proactively as appropriate.  The former
-allows the applications more fine-grained control (per-flow decisions)
-the latter is more scalable and reduces per-flow setup times.
+NOX is able to do this in a scalable manner by operating on network
+flows (as opposed to every packet). For each new flow on the network,
+the first packet is sent to NOX which passes it to interested
+applications. The applications can then: determine whether (and how) to
+forward the flow on the network; collect statistics; modify the packets
+in the flow (e.g. adding a VLAN tag); or view more packets within the
+same flow to gain more information.
 
-Applications are able to determine packet forwarding rules, gather
-datapath statistics, specificy header modification policies, and even
-redirect full flow through the controller for in-depth inspection.
-
-Applications have already been built on NOX which reconstruct the
-network topology, track hosts as they move around the network, provide
-fine-grained network access controls, and manage network history
-(thereby allowing reconstruction of previous network states).
+This flow-level network view provides applications with a tremendous
+amount of control. Applications have already been built on NOX which
+reconstruct the network topology, track hosts as they move around the
+network, provide fine-grained network access controls, and manage
+network history (thereby allowing reconstruction of previous network
+states).

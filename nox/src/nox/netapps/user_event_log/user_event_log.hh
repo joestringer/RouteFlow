@@ -1,4 +1,4 @@
-/* Copyright 2008,2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -22,7 +22,6 @@
 #include "component.hh"
 #include "storage/storage.hh"
 #include "bindings_storage/bindings_storage.hh" 
-#include "data/datatypes.hh"
 #include <string>
 #include "log_entry.hh" 
 
@@ -30,7 +29,6 @@ namespace vigil {
 namespace applications {
 
 using namespace std;
-
 
 
 // The following structures are internal helpers to encapsulate the state of
@@ -43,7 +41,7 @@ enum AddEntryState { READ_SRC_LOCNAMES, READ_DST_LOCNAMES,
 struct AddEntryInfo { 
   AddEntryInfo(const storage::Query &skq, const storage::Query &dkq, 
         const storage::Query &slq, const storage::Query &dlq, 
-        const PrincipalList &sn, const PrincipalList &dn): 
+        const NameList &sn, const NameList &dn):
                   src_key_query(skq), dst_key_query(dkq),
                   src_locname_query(slq), dst_locname_query(dlq), 
                   src_names(sn), dst_names(dn), 
@@ -53,15 +51,15 @@ struct AddEntryInfo {
 
   storage::Row log_row; 
   storage::Query src_key_query,dst_key_query,src_locname_query,dst_locname_query; 
-  PrincipalList src_names, dst_names; // filled in by Bindings_Storage query
+  NameList src_names, dst_names; // filled in by Bindings_Storage query
   AddEntryState cur_state;
 }; 
 typedef boost::shared_ptr<AddEntryInfo> AddEntryInfo_ptr; 
 
 // callback for applications that ask for a particular log entry
 typedef boost::function<void(int64_t logid, int64_t ts, const string &app, 
-            int level, const string &msg, const PrincipalList &src_names, 
-            const PrincipalList &dst_names)> Log_entry_callback;  
+            int level, const string &msg, const NameList &src_names,
+            const NameList &dst_names)> Log_entry_callback;
 
 struct GetEntryInfo {
   GetEntryInfo(int64_t id, Log_entry_callback cb): 
@@ -73,7 +71,7 @@ struct GetEntryInfo {
   string msg; 
   string app; 
   Log_entry_callback callback; 
-  PrincipalList src_names, dst_names;
+  NameList src_names, dst_names;
 }; 
 
 typedef boost::shared_ptr<GetEntryInfo> GetEntryInfo_ptr; 
@@ -91,29 +89,7 @@ typedef boost::shared_ptr<GetLogidsInfo> GetLogidsInfo_ptr;
 typedef boost::function<void(const storage::Result &r)> Clear_log_callback;  
 
 
-/** \ingroup noxcomponents
- *
- *  The goal of the user_event_log is to let applications easily 
- *  generate 'network event log' messages that include high-level 
- *  network names.  Essentially, the application provides a format
- *  string and one or more network identifiers, and the user_event_log fills
- *  in the format string with high-level names associated with those
- *  network identifiers.  For example, an application may call the
- *  user_event_log with a format string: 
- *  "%sh is scanning the local network" and and IP address
- *  as a network identifer.  The user_event_log then finds out the 
- *  host names associated with that IP address (e.g., 'host1') 
- *  and creates the resulting message 'host1 is scanning the local network'.  
- *  
- *  The user_event_log deals with three types of names: hosts, users, and 
- *  locations.  When logging, the application can provide network 
- *  identifiers for both a source and destination, meaning that the following
- *  format characters are valid:  %sh, %dh, %su, %du, %sl, and %dl.  
- *
- *  There are a few methods below for more "exotic" uses of the user_event_log
- *  but they are mainly related to corner cases that should not be common for
- *  most NOX app writers. 
- */
+// for explanation of the user_event_log, see log_entry.hh
 
 class User_Event_Log : 
   public container::Component {
@@ -126,7 +102,7 @@ public:
 
 
      User_Event_Log(const container::Context* c,
-                    const json_object*) 
+                    const xercesc::DOMNode*)
         : Component(c), is_ready(false), next_log_id(1),
           max_num_entries(100),min_existing_logid(0) {
     }
@@ -162,10 +138,10 @@ public:
     int64_t get_max_logid() { return next_log_id - 1; } 
     int64_t get_min_logid() { return min_existing_logid; } 
 
-    // finds all logids associated with a particular (uid,principal-type) pair.
-    // Results are returned as a list of logids to the provided 
-    // callback function
-    void get_logids_for_name(int64_t id, PrincipalType t,
+    // finds all logids associated with a particular (name,type) pair.
+    // For example ("bob",USER).  Results are returned as a list
+    // to the provided callback function
+    void get_logids_for_name(const string &name, Name::Type t,
                                     Get_logids_callback &cb); 
 
     // deletes the specified row
@@ -183,7 +159,6 @@ public:
 private:
     storage::Async_storage* np_store;
     Bindings_Storage *b_store; 
-    Datatypes* datatypes;
     bool is_ready; 
     int64_t next_log_id;
 
@@ -205,8 +180,8 @@ private:
     bool init_main_row(storage::Row &log_entry, const string &app_name, 
           LogEntry::Level level, const string &msg); 
     void write_single_name_entry(AddEntryInfo_ptr info);
-    void write_name_row(AddEntryInfo_ptr info, const Principal &p, int dir);
-    void merge_names(PrincipalList &existing,const PrincipalList &from_lookup);
+    void write_name_row(AddEntryInfo_ptr info, const Name &n, int dir);
+    void merge_names(NameList &existing, const NameList &from_lookup);
 
     // helper functions for fetching log entries
     void read_main_cb(const storage::Result & result, const storage::Context & ctx, 
@@ -225,7 +200,6 @@ private:
     void internal_clear_cb(const storage::Result &r, int64_t cur_logid, 
       int retry_count, int64_t stop_logid, Clear_log_callback final_cb); 
     void internal_clear_finished(); 
-    PrincipalType nametype_to_principaltype(Name::Type t); 
 
     // enforces a cap on the max number of entries contained
     // in the UEL, removing entries in FIFO order if needed

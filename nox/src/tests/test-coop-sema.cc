@@ -21,7 +21,6 @@
 #include <boost/bind.hpp>
 #include <boost/foreach.hpp>
 #include <unistd.h>
-#include <cstdio>
 
 using namespace vigil;
 

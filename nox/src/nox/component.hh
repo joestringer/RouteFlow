@@ -31,9 +31,8 @@
 
 #include <boost/function.hpp>
 #include <boost/noncopyable.hpp>
-#include <boost/shared_array.hpp>
 
-#include "json_object.hh"
+#include <xercesc/dom/DOM.hpp>
 
 #include "netinet++/datapathid.hh"
 #include "netinet++/ethernetaddr.hh"
@@ -57,17 +56,8 @@ typedef std::string Component_name;
 class Configuration;
 class Context;
 
-/** \defgroup noxcomponents NOX Components
- *
- * A Component encapsulates specific functionality made available to NOX.
- *
- * NOX applications are generally componsed of cooperating components
- * that provide the required functionality.
- */
-
-/** \ingroup noxcomponents
- *
- * Base class for all components.
+/*
+ * All components inherit this class.
  *
  * Component see the component state transitions as instantiation and
  * method calls by the container:
@@ -174,10 +164,6 @@ public:
 
     int send_openflow_command(const datapathid&, const ofp_header*, 
                               bool block) const;
-
-    int send_openflow_command(const datapathid&, 
-			      boost::shared_array<uint8_t>& of_raw, 
-                              bool block) const;
     
     int send_openflow_packet(const datapathid&, uint32_t buffer_id, 
                              const ofp_action_header actions[], 
@@ -212,8 +198,6 @@ public:
                     ethernetaddr mac_addr, 
                     uint16_t mac_timeout=0);
     int send_del_snat(const datapathid &dpid, uint16_t port);
-    uint32_t get_switch_controller_ip(const datapathid &dpid);
-    uint32_t get_switch_ip(const datapathid &dpid);
 
 
     /* Context to access the container */
@@ -254,7 +238,7 @@ public:
     Component_factory();
     virtual ~Component_factory();
     virtual Component* instance(const Context*, 
-                                    const json_object*) const = 0;
+                                const xercesc::DOMNode*) const = 0;
     virtual Interface_description get_interface() const = 0;
     virtual void destroy(Component*) const = 0;
 };
@@ -281,10 +265,6 @@ public:
     
     /* Return all command line arguments of the component. */
     virtual const Component_argument_list get_arguments() const = 0;
-
-    /* Return list of arguments. */
-    virtual const hash_map<std::string, std::string> 
-    get_arguments_list(char d1 = ',', char d2 = '=') const = 0;
 };
 
 /* Basic component factory template for simple application needs. */
@@ -296,7 +276,7 @@ public:
     Simple_component_factory() : i(typeid(T).name()) { }
 
     Component* instance(const Context* c, 
-                        const json_object* conf) const { 
+                        const xercesc::DOMNode* conf) const {
         return new T(c, conf);
     }
 

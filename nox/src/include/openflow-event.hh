@@ -19,30 +19,15 @@
 #define OPENFLOW_EVENT_HH 1
 
 #include <memory>
-#include "openflow.hh"
+#include "netinet++/datapathid.hh"
 
 namespace vigil {
 
 class Buffer;
 class Event;
 
-/** \brief Convert OpenFlow packets into specific events.
- *
- * @param oconn OpenFlow connection
- * @param p buffer with message
- * @return event
- */
-Event* openflow_packet_to_event(boost::shared_ptr<Openflow_connection>
-        oconn, std::auto_ptr<Buffer> p);
-
-/** \brief Convert OpenFlow packets into Openflow_msg_event.
- *
- * @param oconn OpenFlow connection
- * @param p buffer with message
- * @return Openflow_msg_event
- */
-Event* openflow_msg_to_event(boost::shared_ptr<Openflow_connection>
-        oconn, std::auto_ptr<Buffer> p);
+Event* openflow_msg_to_event(datapathid, std::auto_ptr<Buffer> p);
+Event* openflow_packet_to_event(datapathid, std::auto_ptr<Buffer> p);
 
 } // namespace vigil
 

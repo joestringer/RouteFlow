@@ -17,9 +17,7 @@
  */
 #include "deployer.hh"
 
-#include <boost/foreach.hpp>
-#include <sstream>
-#include "json-util.hh"
+#include "xml-util.hh"
 
 using namespace std;
 using namespace vigil;
@@ -32,7 +30,6 @@ Deployer::~Deployer() {
 bool
 Deployer::deploy(Kernel* kernel, const Component_name& name) {
     Component_name_context_map::iterator i = uninstalled_contexts.find(name);
-    
     if (i == uninstalled_contexts.end()) {
         return false;
     }
@@ -45,10 +42,10 @@ Deployer::deploy(Kernel* kernel, const Component_name& name) {
 }
 
 const char*
-Deployer::JSON_DESCRIPTION = "meta.json";
+Deployer::XML_DESCRIPTION = "meta.xml";
 
 Deployer::Path_list
-Deployer::scan(boost::filesystem::path p) {;
+Deployer::scan(boost::filesystem::path p) {
     using namespace boost::filesystem;
 
     Path_list description_files;
@@ -61,7 +58,7 @@ Deployer::scan(boost::filesystem::path p) {;
     for (directory_iterator j(p); j != end; ++j) {
         try {
             if (!is_directory(j->status()) && 
-                j->path().leaf() == JSON_DESCRIPTION) {
+                j->path().leaf() == XML_DESCRIPTION) {
                 description_files.push_back(j->path());
                 continue;
             }
@@ -79,35 +76,17 @@ Deployer::scan(boost::filesystem::path p) {;
     return description_files;
 }
 
-Component_context_list
-Deployer::get_contexts() const {
-    Component_context_list l;
-
-    for (Component_name_context_map::const_iterator i = 
-             uninstalled_contexts.begin();
-         i != uninstalled_contexts.end(); ++i) {
-        l.push_back(i->second);
-    }
-
-    return l;
-}
-
 Component_configuration::Component_configuration() {
 }
 
-Component_configuration::Component_configuration(json_object* d,
+Component_configuration::Component_configuration(xercesc::DOMNode* d,
                                             const Component_argument_list& args)
-    : json_description(d), arguments(args)
-
+    : xml_description(d), arguments(args)
 {
     using namespace vigil::container;
 
-    json_object* n = json::get_dict_value(d, "name");
-    name = n->get_string(true);
-    /*json_dict::iterator i;
-    json_dict* jodict = (json_dict*) d->object;
-    i = jodict->find("name");
-    name = i->second->get_string(true);*/
+    name = xml::to_string(xml::get_child_by_tag(d, "name")->getTextContent());
+
     // TODO: parse keys
 }
 
@@ -136,35 +115,4 @@ Component_configuration::keys() const {
 const Component_argument_list
 Component_configuration::get_arguments() const {
     return arguments;
-}
-
-
-const hash_map<std::string,std::string> 
-Component_configuration::get_arguments_list(char d1, char d2) const {
-    hash_map<std::string,std::string> argmap;
-       
-    BOOST_FOREACH(const std::string& arg_str, arguments){
-        std::stringstream args(arg_str);
-	std::string arg;
-	int argcount = 0;
-	
-	while (getline(args,arg, ',')) {
-	    std::stringstream argsplit(arg);
-	    std::string argid,argval,tmparg;
-	    while (getline(argsplit, tmparg, '=')) {
-	      switch (argcount) {
-	      case 0:
-		argid = tmparg;
-		break;
-	      case 1:
-		argval = tmparg;
-		break;
-	      }
-	      argcount++;
-	    }
-	    argmap.insert(std::make_pair(argid, argval));
-	}
-    }
-
-    return argmap;
 }

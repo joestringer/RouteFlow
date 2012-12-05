@@ -58,34 +58,11 @@ public:
 
 private:
     struct current_rule {
-        current_rule()
-            : ismatch(false), set(false) {}
-
         current_rule(const Rule_list& rules)
-            : rule(rules.begin()), end(rules.end()), ismatch(false), set(true) { }
-
-        current_rule(const current_rule& other)
-            : ismatch(false), set(other.set) {
-            if (set) {
-                rule = other.rule;
-                end = other.end;
-                ismatch = other.ismatch;
-            }
-        }
-
-        current_rule& operator=(const current_rule& other) {
-            set = other.set;
-            if (set) {
-                rule = other.rule;
-                end = other.end;
-                ismatch = other.ismatch;
-            }
-            return *this;
-        }
+            : rule(rules.begin()), end(rules.end()), ismatch(false) { }
         typename std::list<Rule_ptr>::const_iterator rule;
         typename std::list<Rule_ptr>::const_iterator end;
         bool ismatch;
-        bool set;
     };
 
     const Data *data;
@@ -120,7 +97,7 @@ Cnode_result<Expr, Action, Data>::push(const Rule_list& rules)
  */
 
 template<class Expr, typename Data>
-bool matches(uint32_t, const Expr&, const Data&);
+bool matches(const Expr&, const Data&);
 
 template<class Expr, typename Action, typename Data>
 const Rule<Expr, Action>*
@@ -134,7 +111,7 @@ Cnode_result<Expr, Action, Data>::next()
         current_rule& current = traversed[i];
         const Rule<Expr, Action>* rule = *(current.rule);
         if (match == NULL || rule->priority < min_pri) {
-            if (current.ismatch || matches(rule->id, rule->expr, *data)) {
+            if (current.ismatch || matches(rule->expr, *data)) {
                 match = rule;
                 min_pri = match->priority;
                 min_idx = i;

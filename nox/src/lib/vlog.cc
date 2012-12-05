@@ -21,7 +21,6 @@
 #include <boost/tokenizer.hpp>
 #include <errno.h>
 #include <string>
-#include <stdio.h>
 #include <syslog.h>
 #include <vector>
 #include "hash_map.hh"
@@ -29,31 +28,8 @@
 
 namespace vigil {
 
-// this may be broken into multiple calls to syslog, each of
-// size no larger than LINE_MAX
-static const int LOG_BUFFER_LEN = 8192;
+static const int LOG_BUFFER_LEN = 2048;
 
-// in order to know that we don't pass syslog() any string that
-// is too long, we must specify a max length for elements in the message
-static const int MAX_MODULE_NAME_LEN = 64;
-static const int MAX_MSG_NUM_LEN = 5; //also hardcoded below in format
-static const int MAX_LEVEL_DESC_LEN = 16; 
-
-
-/*
-  This logic is too aggressive for our debian systems that use sysklogd. 
-  From the sysklogd source, it appears that they limit the format string passed
-  in (our entire message) to 1024 bytes, which can be substantially smaller 
-  than LINE_MAX.  We conservatively hardcode this to 900 for now, which 
-  seems to avoid truncation. 
-
-static const int MAX_MSG_LEN = LINE_MAX - MAX_MODULE_NAME_LEN - \
-                               MAX_MSG_NUM_LEN - MAX_LEVEL_DESC_LEN - \
-                               5; // for extra formating chars and newline
-*/ 
-static const int MAX_MSG_LEN = 900; 
-
-// NOTE: no names in this list should be longer than MAX_LEVEL_DESC_LEN
 static const char* level_names[Vlog::N_LEVELS] = {
     "EMER",
     "ERR",
@@ -181,8 +157,7 @@ Vlog::get_module_name(Module module)
 Vlog::Module
 Vlog::get_module_val(const char* name, bool create)
 {
-    std::string short_name = std::string(name).substr(0,MAX_MODULE_NAME_LEN); 
-    Name_to_module::iterator i = pimpl->name_to_module.find(short_name);
+    Name_to_module::iterator i = pimpl->name_to_module.find(name);
     if (i == pimpl->name_to_module.end()) {
         if (!create) {
             return -1;
@@ -190,8 +165,8 @@ Vlog::get_module_val(const char* name, bool create)
         
         /* Create new module. */
         Module module = pimpl->module_to_name.size();
-        pimpl->module_to_name.push_back(short_name);
-        Name_to_module::value_type value(short_name, module);
+        pimpl->module_to_name.push_back(std::string(name));
+        Name_to_module::value_type value(name, module);
         i = pimpl->name_to_module.insert(value).first;
 
         /* Set log levels. */
@@ -258,7 +233,7 @@ Vlog::Vlog()
 {
     /* This only need to be done once per program, but doing it more than once
      * shouldn't hurt. */
-    ::openlog("nox", LOG_NDELAY, 0);
+    ::openlog(VLOG_NAME, LOG_NDELAY, 0);
 
     pimpl->msg_num = 0;
     for (Facility facility = 0; facility < N_FACILITIES; ++facility) {
@@ -270,16 +245,6 @@ Vlog::Vlog()
      * before the Vlog_module's constructor is called, then its 'module' will
      * be 0, so that its module name will be logged as "uninitialized". */
     get_module_val("uninitialized");
-        
-    /*    
-    // Init socket to forward log msgs 
-	hSock = socket(AF_INET, SOCK_DGRAM, 0);	
-	struct hostent *pServer = gethostbyname("localhost");
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	memcpy(&addr.sin_addr.s_addr, pServer->h_addr, pServer->h_length);
-	addr.sin_port = htons(2222);
-	*/
 }
 
 Vlog::~Vlog()
@@ -299,6 +264,7 @@ Vlog::log(Module module, Level level, const char *format, ...)
     ::va_start(arg, format);
     ::vsnprintf(logMsg, sizeof logMsg, format, arg);
     ::va_end(arg);
+
     output(module, level, logMsg);
 }
 
@@ -340,7 +306,7 @@ Vlog::set_levels_from_string(const std::string& str)
         if (*moditer == "ANY") {
             module = ANY_MODULE;
         } else {
-            module = get_module_val(moditer->c_str(), true);
+            module = get_module_val(moditer->c_str(), false);
             if (module == -1) {
                 return "unknown module " + *moditer;
             }
@@ -413,29 +379,10 @@ Vlog::output(Module module, Level level, const char* log_msg)
                : level == LEVEL_WARN ? LOG_WARNING
                : level == LEVEL_INFO ? LOG_INFO
                : LOG_DEBUG);
-        if(strlen(log_msg) < MAX_MSG_LEN) { 
-          ::syslog(priority, "%05d|%s:%s %s",
+        ::syslog(priority, "%05d|%s:%s %s",
                  pimpl->msg_num, module_name, level_name, log_msg);
-        } else {
-          // this is a long message, so we will need to split it into multiple calls
-          // to syslog, each of length <= MAX_MSG_LEN
-          // Do this in a separate branch to avoid copies on short log messages
-          std::string long_str = std::string(log_msg); 
-          int start_index = 0; 
-          while(start_index < long_str.length()) {
-            std::string sub = long_str.substr(start_index, MAX_MSG_LEN);  
-            ::syslog(priority, "%05d|%s:%s %s",
-                 pimpl->msg_num, module_name, level_name, sub.c_str());
-            start_index += MAX_MSG_LEN; 
-          }  
-        } 
     }
-/* 
-    // Send log msg to socket 
-    char pWrite[MAX_MSG_LEN];
-    snprintf(pWrite, MAX_MSG_LEN, "%05d|%s|%s:%s\n",pimpl->msg_num,module_name,level_name,log_msg);
-    sendto(hSock,pWrite,strlen(pWrite),0,(sockaddr*)&addr,sizeof(addr));
-*/
+
     /* Restore errno (it's pretty unfriendly for a log function to change
      * errno). */
     errno = save_errno;

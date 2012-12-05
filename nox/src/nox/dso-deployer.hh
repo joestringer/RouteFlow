@@ -50,7 +50,7 @@ public:
     static container::Component* instantiate(Kernel*, 
                                              const Path_list& lib_search_paths,
                                              const container::Context*,
-                                             const json_object*);
+                                             const xercesc::DOMNode*);
 
     void configure(const container::Configuration*);
     void install();
@@ -68,7 +68,7 @@ class DSO_component_context
     : public Component_context {
 public:
     DSO_component_context(Kernel*, const std::string& component_home_path, 
-                          json_object*);
+                          xercesc::DOMNode*);
 
 private:
     /* Actions implementing state transitions */

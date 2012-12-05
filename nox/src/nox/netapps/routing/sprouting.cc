@@ -32,13 +32,15 @@
 #define SEPL_PROP_SECTION   "sepl"
 #define ENFORCE_POLICY_VAR  "enforce_policy"
 
+#define DP_FROM_AP(loc) ((loc) & 0xffffffffffffULL)
+
 namespace vigil {
 namespace applications {
 
 static Vlog_module lg("sp_routing");
 
-SPRouting::SPRouting(const container::Context *c, const json_object* d)
-    : container::Component(c), routing(NULL), 
+SPRouting::SPRouting(const container::Context *c, const xercesc::DOMNode* d)
+    : container::Component(c), routing(NULL), tstorage(NULL), properties(NULL),
       empty(new Routing_module::Route()), passive(false)
 {}
 
@@ -56,6 +58,7 @@ void
 SPRouting::configure(const container::Configuration*)
 {
     resolve(routing);
+    resolve(tstorage);
     register_handler<Bootstrap_complete_event>
         (boost::bind(&SPRouting::handle_bootstrap, this, _1));
     register_handler<Flow_in_event>
@@ -68,7 +71,8 @@ validate_args(const std::vector<std::string>& args,
               uint16_t& tport, bool& check_nat)
 {
     if (args.size() != 5) {
-        VLOG_ERR(lg, "Incorrect number of arguments %zu", args.size());
+        VLOG_ERR(lg, "Incorrect number of arguments %"PRIu32".",
+                 args.size());
         return false;
     }
 
@@ -195,9 +199,10 @@ SPRouting::install()
 Disposition
 SPRouting::handle_bootstrap(const Event& e)
 {
-    update_passive(); // Currently does nothing.  
-                      // In the future can set whether
-                      // running in passive mode
+    configuration::Properties::Default_value_map default_val;
+    default_val[ENFORCE_POLICY_VAR] = std::vector<configuration::Property>(1, configuration::Property(int64_t(1)));
+    properties = new configuration::Properties(tstorage, SEPL_PROP_SECTION, default_val);
+    update_passive();
     return CONTINUE;
 }
 
@@ -205,8 +210,12 @@ SPRouting::handle_bootstrap(const Event& e)
 void
 SPRouting::update_passive()
 {
-  // To set in passive mode, set passive bool to true
-    //     passive = true;
+    properties->load();
+    passive = boost::get<int64_t>((*(properties->get_value(ENFORCE_POLICY_VAR)))[0].get_value()) == 0;
+    if (!boost::get<0>(properties->add_callback(boost::bind(&SPRouting::update_passive, this)))) {
+        VLOG_ERR(lg, "Could not add callback to update passive variable.  Defaulting to true.");
+        passive = true;
+    }
 }
 
 Disposition
@@ -230,11 +239,6 @@ SPRouting::route_flow(Flow_in_event& fi, const Buffer& actions,
     uint16_t inport, outport;
     check_nat = check_nat && fi.flow.dl_type == ethernet::IP;
     if (!set_route(fi, route, inport, outport, actions, check_nat)) {
-        //Cannot ignore packets, so flood.
-        routing->send_packet(fi.datapath_id, ntohs(fi.flow.in_port),
-			     OFPP_FLOOD, fi.buffer_id, *(fi.buf),
-                             Nonowning_buffer(), check_nat,
-                             fi.flow, NULL, NULL, NULL, NULL);
         return CONTINUE;
     }
 
@@ -246,10 +250,7 @@ SPRouting::route_flow(Flow_in_event& fi, const Buffer& actions,
 
     routing->setup_route(fi.flow, *route, inport, outport, FLOW_TIMEOUT,
                          alist, check_nat,
-                         fi.src_dladdr_groups.get(),
-                         fi.src_nwaddr_groups.get(),
-                         fi.dst_dladdr_groups.get(),
-                         fi.dst_nwaddr_groups.get());
+                         fi.src_addr_groups.get(), fi.dst_addr_groups.get());
 
     bool on_route = (fi.datapath_id == route->id.src)
         || (fi.datapath_id == route->id.dst);
@@ -269,7 +270,7 @@ SPRouting::route_flow(Flow_in_event& fi, const Buffer& actions,
         routing->send_packet(fi.datapath_id, ntohs(fi.flow.in_port),
                              OFPP_TABLE, fi.buffer_id, *(fi.buf),
                              Nonowning_buffer(), false,
-                             fi.flow, NULL, NULL, NULL, NULL);
+                             fi.flow, NULL, NULL);
     } else {
         if (lg.is_dbg_enabled()) {
             std::ostringstream os;
@@ -279,7 +280,7 @@ SPRouting::route_flow(Flow_in_event& fi, const Buffer& actions,
         routing->send_packet(fi.datapath_id, ntohs(fi.flow.in_port),
                              OFPP_FLOOD, fi.buffer_id, *(fi.buf),
                              Nonowning_buffer(), check_nat,
-                             fi.flow, NULL, NULL, NULL, NULL);
+                             fi.flow, NULL, NULL);
     }
 
     return CONTINUE;
@@ -292,11 +293,11 @@ SPRouting::set_route(Flow_in_event& fi,
                      const Buffer& actions, bool check_nat)
 {
     if (fi.route_source == NULL) {
-        empty->id.src = fi.src_location.location->sw->dp;
-        inport = fi.src_location.location->port;
+        empty->id.src = datapathid::from_host(DP_FROM_AP(fi.src_location.location->dpport));
+        inport = (uint16_t)(fi.src_location.location->dpport >> 48);
     } else {
-        empty->id.src = fi.route_source->sw->dp;
-        inport = fi.route_source->port;
+        empty->id.src = datapathid::from_host(DP_FROM_AP(fi.route_source->dpport));
+        inport = (uint16_t)(fi.route_source->dpport >> 48);
     }
 
     bool use_dst;
@@ -307,6 +308,7 @@ SPRouting::set_route(Flow_in_event& fi,
     }
 
     fi.routed_to = 0;
+    uint64_t location;
     bool checked = false;
     while (true) {
         if (use_dst) {
@@ -315,20 +317,19 @@ SPRouting::set_route(Flow_in_event& fi,
             }
             const Flow_in_event::DestinationInfo& dst = fi.dst_locations[fi.routed_to];
             if (dst.allowed || passive) {
-                empty->id.dst = dst.authed_location.location->sw->dp;
-                outport = dst.authed_location.location->port;
+                location = dst.authed_location.location->dpport;
             } else {
-                empty->id.dst = datapathid::from_host(0);
+                location = 0;
             }
         } else if (fi.routed_to >= fi.route_destinations.size()) {
             break;
         } else {
-            empty->id.dst = fi.route_destinations[fi.routed_to]->sw->dp;
-            outport = fi.route_destinations[fi.routed_to]->port;
+            location = fi.route_destinations[fi.routed_to]->dpport;
         }
 
-        if (empty->id.dst.as_host() != 0) {
+        if (location != 0) {
             bool check = false;
+            empty->id.dst = datapathid::from_host(DP_FROM_AP(location));
             if (empty->id.src == empty->id.dst) {
                 route = empty;
                 check = true;
@@ -338,6 +339,7 @@ SPRouting::set_route(Flow_in_event& fi,
 
             if (check) {
                 checked = true;
+                outport = (uint16_t) (location >> 48);
                 if (routing->check_route(*route, inport, outport)) {
                     return true;
                 }
@@ -374,17 +376,11 @@ SPRouting::set_route(Flow_in_event& fi,
         routing->setup_flow(fi.flow, fi.datapath_id, OFPP_FLOOD,
                             fi.buffer_id, *(fi.buf), BROADCAST_TIMEOUT,
                             actions, check_nat,
-                            fi.src_dladdr_groups.get(),
-                            fi.src_nwaddr_groups.get(),
-                            fi.dst_dladdr_groups.get(),
-                            fi.dst_nwaddr_groups.get());
+                            fi.src_addr_groups.get(), fi.dst_addr_groups.get());
     } else {
         routing->send_packet(fi.datapath_id, ntohs(fi.flow.in_port), OFPP_FLOOD,
                              fi.buffer_id, *(fi.buf), actions, check_nat, fi.flow,
-                             fi.src_dladdr_groups.get(),
-                             fi.src_nwaddr_groups.get(),
-                             fi.dst_dladdr_groups.get(),
-                             fi.dst_nwaddr_groups.get());
+                             fi.src_addr_groups.get(), fi.dst_addr_groups.get());
     }
 
     return false;

@@ -1,0 +1,47 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+	<xs:include schemaLocation="network.xsd" />
+
+	<xs:element name="dhcpconfig" type="dhcpconfigType" />
+
+	<xs:complexType name="dhcpconfigType">
+		<xs:sequence>
+			<xs:element name="filter" type="filterType" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+
+	<xs:complexType name="filterType">
+		<xs:sequence>
+			<xs:element name="filter" type="filterType" minOccurs="0" maxOccurs="64"/>
+			<xs:element name="pfilter" type="primitiveFilter" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="SATISFY_ALL" type="xs:boolean" use="required" />
+	</xs:complexType>
+
+	<xs:complexType name="primitiveFilter">
+		<xs:choice>
+			<xs:element name="whois" type="whoisType" />
+			<xs:element name="mac" type="macType" />
+			<xs:element name="dpid" type="dpidType" />
+			<xs:element name="port" type="portType" />
+		</xs:choice>
+	</xs:complexType>
+
+	<xs:complexType name="whoisType">
+		<xs:attribute name="server" type="xs:string" use="required" />
+	</xs:complexType>
+
+	<xs:complexType name="macType">
+		<xs:attribute name="start" type="hex48" use="required" />
+		<xs:attribute name="end" type="hex48" use="required" />
+	</xs:complexType>
+
+	<xs:complexType name="dpidType">
+		<xs:attribute name="start" type="hex64" use="required" />
+		<xs:attribute name="end" type="hex64" use="required" />
+	</xs:complexType>
+
+	<xs:complexType name="portType">
+		<xs:attribute name="start" type="xs:unsignedShort" use="required" />
+		<xs:attribute name="end" type="xs:unsignedShort" use="required" />
+	</xs:complexType>
+</xs:schema>

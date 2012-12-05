@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -27,9 +27,6 @@
 #include "vlog.hh"
 #include "user_event_log/user_event_log.hh" 
 #include "bindings_storage/bindings_storage.hh"
-#include "data/datacache.hh"
-#include "bootstrap-complete.hh"
-
 using namespace std;
 using namespace vigil;
 using namespace vigil::container;
@@ -50,43 +47,31 @@ class UserEventLogTest2
 public:
 
     UserEventLogTest2(const container::Context* c,
-                      const json_object* xml) 
+                      const xercesc::DOMNode* xml)
         : Component(c), counter(0) {
     }
 
     void configure(const Configuration*) {
         resolve(uel);
         resolve(b_store);
-        resolve(data_cache);
-        register_handler<Bootstrap_complete_event>(
-            boost::bind(&UserEventLogTest2::bootstrap_complete_cb,
-                        this, _1)); 
+        resolve(namemanager);
     }
 
-    void install() {} 
-
-    Disposition bootstrap_complete_cb(const Event& e) {
-        int64_t locid = 5;
-        int64_t switchid = 5;
-        int64_t userid = 5;
-        int64_t hostid = 5;
-        data_cache->update_switch(switchid, "noopenflow #1", 0, datapathid::from_host(1));
-        b_store->add_name_for_location(datapathid::from_host(1), 0, switchid, Name::SWITCH);
-        data_cache->update_location(locid, "the dance cube, port #1",
-                                    0, switchid, 1, "eth0");
-        b_store->add_name_for_location(datapathid::from_host(1), 1, locid, Name::LOCATION);
-        data_cache->update_user(userid, "dan");
-        data_cache->update_host(hostid, "javelina");
-
+    void install() {
+        uint32_t locid = namemanager->get_principal_id("discovered;the #1 and #2 worst ap\\location name; ever",
+                                                       directory::LOCATION_PRINCIPAL, false, true);
+        uint32_t switchid = namemanager->get_principal_id("discovered;switch #1",
+                                                          directory::SWITCH_PRINCIPAL, false, true);
+        uint32_t userid = namemanager->get_principal_id("discovered;dan", directory::USER_PRINCIPAL, false, true);
         b_store->store_location_binding(ethernetaddr(1), locid);
-        b_store->store_host_binding(hostid, ethernetaddr(1), 1);
-        b_store->store_user_binding(userid, hostid);
-
+        b_store->store_host_binding(NameManager::AUTHENTICATED_ID, ethernetaddr(1), 1);
+        b_store->store_user_binding(userid, NameManager::AUTHENTICATED_ID);
+        b_store->add_name_for_location(datapathid::from_host(1), 1, locid, Name::LOCATION);
+        b_store->add_name_for_location(datapathid::from_host(1), 0, switchid, Name::SWITCH);
         // this is a hack for simplicity.  we assume that NDB writes will
         // complete in 2 seconds, which should be quite safe 
         timeval tv = { 2, 0 };
         post(boost::bind(&UserEventLogTest2::timer_callback, this), tv);
-        return CONTINUE; 
     }
 
     void timer_callback() {
@@ -110,7 +95,7 @@ private:
     int counter; 
     User_Event_Log *uel;
     Bindings_Storage* b_store;
-    Data_cache* data_cache;
+    NameManager* namemanager;
 };
 
 

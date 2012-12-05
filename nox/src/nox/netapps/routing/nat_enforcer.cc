@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -33,7 +33,7 @@ namespace applications {
 static Vlog_module lg("nat_enforcer");
 
 NAT_enforcer::NAT_enforcer(const container::Context* c,
-                           const json_object*)
+                           const xercesc::DOMNode*)
     : Classifier<Flow_expr, Flow_action>(), Component(c),
       result(&data)
 {}
@@ -57,19 +57,15 @@ NAT_enforcer::install()
 
 void
 NAT_enforcer::get_nat_locations(const Flow *flow,
-                                const GroupList *sdladdr_groups,
-                                const GroupList *snwaddr_groups,
-                                const GroupList *ddladdr_groups,
-                                const GroupList *dnwaddr_groups,
+                                const std::vector<uint32_t> *saddr_groups,
+                                const std::vector<uint32_t> *daddr_groups,
                                 std::vector<const std::vector<uint64_t>*>& locations)
 {
     locations.clear();
 
     data.flow = flow;
-    data.src_dladdr_groups = sdladdr_groups;
-    data.src_nwaddr_groups = snwaddr_groups;
-    data.src_dladdr_groups = ddladdr_groups;
-    data.dst_nwaddr_groups = dnwaddr_groups;
+    data.src_addr_groups = saddr_groups;
+    data.dst_addr_groups = daddr_groups;
 
     const Rule<Flow_expr, Flow_action> *match;
     get_rules(result);
@@ -104,9 +100,9 @@ NAT_enforcer::nat_location(uint64_t location, uint64_t& dladdr,
 
 static
 bool
-in_groups(const GroupList& groups, uint32_t val)
+in_groups(const std::vector<uint32_t>& groups, uint32_t val)
 {
-    for (GroupList::const_iterator iter = groups.begin();
+    for (std::vector<uint32_t>::const_iterator iter = groups.begin();
          iter != groups.end(); ++iter)
     {
         if (val == *iter)
@@ -124,10 +120,10 @@ get_field<Flow_expr, NAT_data>(uint32_t field, const NAT_data& data,
                                uint32_t idx, uint32_t& value)
 {
     uint64_t v;
-    uint32_t total, dlsize;
+
     // No other supported fields have > 1 value
-    if (idx > 0 && field != Flow_expr::GROUPSRC
-        && field > Flow_expr::GROUPDST)
+    if (idx > 0 && (field < Flow_expr::ADDRGROUPSRC
+                    || field > Flow_expr::ADDRGROUPDST))
     {
         return false;
     }
@@ -140,11 +136,11 @@ get_field<Flow_expr, NAT_data>(uint32_t field, const NAT_data& data,
         value = data.flow->dl_vlan_pcp;
         return true;
     case Flow_expr::DLSRC:
-        v = data.flow->dl_src.hb_long();
+        v = data.flow->dl_src.nb_long();
         value = ((uint32_t) v) ^ (v >> 32);
         return true;
     case Flow_expr::DLDST:
-        v = data.flow->dl_dst.hb_long();
+        v = data.flow->dl_dst.nb_long();
         value = ((uint32_t) v) ^ (v >> 32);
         return true;
     case Flow_expr::DLTYPE:
@@ -159,49 +155,35 @@ get_field<Flow_expr, NAT_data>(uint32_t field, const NAT_data& data,
     case Flow_expr::NWPROTO:
         value = data.flow->nw_proto;
         return true;
+    case Flow_expr::NWTOS:
+        value = data.flow->nw_tos;
+        return true;
     case Flow_expr::TPSRC:
         value = data.flow->tp_src;
         return true;
     case Flow_expr::TPDST:
         value = data.flow->tp_dst;
         return true;
-    case Flow_expr::GROUPSRC:
-        // if groups are null treat as none, not any
-        dlsize = (data.src_dladdr_groups == NULL ?
-                  0 : data.src_dladdr_groups->size());
-        total = dlsize + (data.src_nwaddr_groups == NULL ?
-                          0 : data.src_nwaddr_groups->size());
-        if (idx >= total) {
+    case Flow_expr::ADDRGROUPSRC:
+        if (data.src_addr_groups == NULL
+            || idx >= data.src_addr_groups->size())
+        {
             if (idx > 0)
                 return false;
             value = 0;
         } else {
-            if (data.src_dladdr_groups != NULL
-                && idx < data.src_dladdr_groups->size())
-            {
-                value = data.src_dladdr_groups->at(idx);
-            } else {
-                value = data.src_nwaddr_groups->at(idx - dlsize);
-            }
+            value = data.src_addr_groups->at(idx);
         }
         return true;
-    case Flow_expr::GROUPDST:
-        dlsize = (data.src_dladdr_groups == NULL ?
-                  0 : data.src_dladdr_groups->size());
-        total = dlsize + (data.src_nwaddr_groups == NULL ?
-                          0 : data.src_nwaddr_groups->size());
-        if (idx >= total) {
+    case Flow_expr::ADDRGROUPDST:
+        if (data.dst_addr_groups == NULL
+            || idx >= data.dst_addr_groups->size())
+        {
             if (idx > 0)
                 return false;
             value = 0;
         } else {
-            if (data.src_dladdr_groups != NULL
-                && idx < data.src_dladdr_groups->size())
-            {
-                value = data.src_dladdr_groups->at(idx);
-            } else {
-                value = data.src_nwaddr_groups->at(idx - dlsize);
-            }
+            value = data.dst_addr_groups->at(idx);
         }
         return true;
     }
@@ -219,7 +201,7 @@ get_field<Flow_expr, NAT_data>(uint32_t field, const NAT_data& data,
 
 template<>
 bool
-matches(uint32_t rule_id, const Flow_expr& expr, const NAT_data& data)
+matches(const Flow_expr& expr, const NAT_data& data)
 {
     const Flow& flow = *(data.flow);
 
@@ -244,18 +226,13 @@ matches(uint32_t rule_id, const Flow_expr& expr, const NAT_data& data)
                 return false;
             }
             break;
-        case Flow_expr::DLVLANPCP:
-            if (((uint32_t)(iter->val) == flow.dl_vlan_pcp) == bad_result) {
-                return false;
-            }
-            break;
         case Flow_expr::DLSRC:
-            if ((iter->val == flow.dl_src.hb_long()) == bad_result) {
+            if ((iter->val == flow.dl_src.nb_long()) == bad_result) {
                 return false;
             }
             break;
         case Flow_expr::DLDST:
-            if ((iter->val == flow.dl_dst.hb_long()) == bad_result) {
+            if ((iter->val == flow.dl_dst.nb_long()) == bad_result) {
                 return false;
             }
             break;
@@ -289,23 +266,21 @@ matches(uint32_t rule_id, const Flow_expr& expr, const NAT_data& data)
                 return false;
             }
             break;
-        case Flow_expr::GROUPSRC:
-            if (((data.src_dladdr_groups != NULL
-                  && in_groups(*(data.src_dladdr_groups), iter->val))
-                 || (data.src_nwaddr_groups != NULL
-                     && in_groups(*(data.src_nwaddr_groups), iter->val)))
-                == bad_result)
-            {
+        case Flow_expr::ADDRGROUPSRC:
+            if (data.src_addr_groups == NULL) {
+                if (!bad_result) {
+                    return false;
+                }
+            } else if (in_groups(*(data.src_addr_groups), iter->val) == bad_result) {
                 return false;
             }
             break;
-        case Flow_expr::GROUPDST:
-            if (((data.dst_dladdr_groups != NULL
-                  && in_groups(*(data.dst_dladdr_groups), iter->val))
-                 || (data.dst_nwaddr_groups != NULL
-                     && in_groups(*(data.dst_nwaddr_groups), iter->val)))
-                == bad_result)
-            {
+        case Flow_expr::ADDRGROUPDST:
+            if (data.dst_addr_groups == NULL) {
+                if (!bad_result) {
+                    return false;
+                }
+            } else if (in_groups(*(data.dst_addr_groups), iter->val) == bad_result) {
                 return false;
             }
             break;

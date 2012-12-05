@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -26,6 +26,7 @@
 #include "component.hh"
 #include "dht-impl.hh"
 #include "threads/cooperative.hh"
+#include "transactional-storage.hh"
 
 namespace vigil {
 namespace applications {
@@ -39,7 +40,7 @@ class Async_DHT_storage
       public container::Component {
 public:
     Async_DHT_storage(const container::Context*,
-                      const json_object*);
+                      const xercesc::DOMNode*);
 
     void create_table(const Table_name&,
                       const Column_definition_map&,
@@ -94,7 +95,26 @@ private:
     /* Determines the matching index for a query. */
     Index identify_index(const Table_name&, const Query&) const;
 
-    typedef std::list<boost::function<void(const Async_storage::Put_callback)> > Put_list;
+    typedef std::list<boost::function<void(const Put_callback)> > Put_list;
+    void create_table_step(const Result&, const GUID&, const Put_list&,
+                           const boost::function<void(const Result)>&);
+    void create_table_end(const Result&, const Table_name&,
+                          const Column_definition_map&, const Index_list&,
+                          const Create_table_callback&);
+    void drop_table_step_0(const Result&, const Table_name&,
+                           const Drop_table_callback&);
+    void drop_table_step_1(const Result&, const Async_transactional_cursor_ptr&,
+                           const Table_name&, const std::list<Table_name>&,
+                           const boost::function<void(const Result)>&);
+    void drop_table_step_2(const Result&, const Row&,
+                           const Async_transactional_cursor_ptr& cur,
+                           const Table_name&, const std::list<Table_name>&,
+                           const boost::function<void(const Result)>&);
+    void drop_table_step_3(const Result&, const Table_name&,
+                           const std::list<Table_name>&,
+                           const boost::function<void(const Result)>&);
+    void drop_table_end(const Result&, const Table_name&,
+                        const Drop_table_callback&);
     
     /* Table schemas */
     typedef hash_map<Index_name, Index> Index_map;
@@ -107,6 +127,9 @@ private:
     /* Fake DHTs */
     hash_map<DHT_name, Content_DHT_ptr> content_dhts;
     hash_map<DHT_name, Index_DHT_ptr> index_dhts;
+
+    /* Pointer to the persistent storage */
+    Async_transactional_connection_ptr connection;
 
     /* Mutex protecting the table definitions and rings */
     mutable Co_mutex mutex;

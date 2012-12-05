@@ -107,7 +107,7 @@ Index::operator==(const Column_value_map& c) const {
     return true;
 }
 
-Reference::Reference() : version(ANY_VERSION), guid(), wildcard(true) { }
+Reference::Reference() : wildcard(true) { }
 
 Reference::Reference(const int version_, const GUID& guid_,const bool wildcard_)
     : version(version_), guid(guid_), wildcard(wildcard_) { }
@@ -311,7 +311,7 @@ using namespace vigil::container;
 namespace {
     struct Null_component
         : public Component {
-        Null_component(const container::Context* c, const json_object*)
+        Null_component(const container::Context* c, const xercesc::DOMNode*)
             : Component(c) { };
         void configure(const Configuration*) { }
         void install() { }

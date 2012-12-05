@@ -24,7 +24,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/function.hpp>
 
-#include "json_object.hh"
+#include <xercesc/dom/DOM.hpp>
 
 #include "component.hh"
 #include "kernel.hh"
@@ -41,22 +41,22 @@ class Static_component_context
     : public Component_context {
 public:
     typedef boost::function<container::Component*(container::Context*, 
-                                                  const json_object*)>
+                                                  const xercesc::DOMNode*)>
     Constructor_callback;
 
     Static_component_context(Kernel*, const container::Component_name&,
                              const Constructor_callback&,
                              const container::Interface_description&,
-                             json_object*);
+                             xercesc::DOMNode*);
     Static_component_context(Kernel*, const container::Component_name&,
                              const container::Component_factory*, 
-                             json_object*);
+                             xercesc::DOMNode*);
 
 private:
     /* Common functionality shared among constructors */
     void init_actions(const container::Component_name&, 
                       const container::Interface_description&,
-                      json_object* platform_conf);
+                      xercesc::DOMNode* platform_conf);
 
     /* Actions implementing state transitions */
     void describe();

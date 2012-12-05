@@ -17,9 +17,9 @@
  */
 #include "pycomponent.hh"
 
-#ifndef SWIG
+#ifndef SWIGPYTHON
 #include "swigpyrun.h"
-#endif // SWIG
+#endif // SWIGPYTHON
 
 #include <Python.h>
 #include <cstdio>
@@ -32,7 +32,7 @@
 #include "pyrt/pyrt.hh"
 #include "pycontext.hh"
 #include "vlog.hh"
-#include "json-util.hh"
+#include "xml-util.hh"
 
 using namespace std;
 using namespace vigil;
@@ -41,12 +41,13 @@ using namespace vigil::container;
 
 static Vlog_module lg("pycomponent");
 
-PyComponent::PyComponent(const Context* c, const json_object* conf)
+PyComponent::PyComponent(const Context* c, const xercesc::DOMNode* conf)
     : Component(c), pyobj(0) {
-    // Import the Python component implementation module and get the factory.
-    json_object* mod = json::get_dict_value(conf, "python"); 
-    string module = mod->get_string(true);
-    
+    // Import the Python component implementation module and get the
+    // factory.
+    string module =
+        xml::to_string(xml::get_child_by_tag(conf, "python")->
+                       getTextContent());
     lg.dbg("Importing Python module %s", module.c_str());
 
     PyObject* m = PyImport_ImportModule(module.c_str());
@@ -120,18 +121,6 @@ PyComponent::init() {
     }
 
     PyObject* pi = PyObject_CallMethodObjArgs(pyobj, method, 0);
-    if (!pi) {
-        const string exception_msg =  pretty_print_python_exception();
-        throw runtime_error("getInterface failed: " + exception_msg);
-    }
-
-    // If component returned a (class) type, translate it to a string.
-    if (pi && PyType_Check(pi)) {
-        PyObject* t = pi;
-        pi = PyObject_Str(t);
-        Py_DECREF(t);
-    }
-
     if (!pi || !PyString_Check(pi)) {
         const string exception_msg =  pretty_print_python_exception();
         Py_DECREF(method);
@@ -140,6 +129,8 @@ PyComponent::init() {
     }
 
     Py_DECREF(method);
+
+    // XXX: accept Python class as well
 
     char* s = PyString_AsString(pi);
     if (!s) {
@@ -182,6 +173,8 @@ static string get_twisted_failure(PyObject* failure) {
 static void complete(bool success, string* result, Co_sema* sem,
                      PyObject* failure) {
     *result = success ? "" : get_twisted_failure(failure);
+    Py_XDECREF(failure);
+
     sem->up();
 }
 

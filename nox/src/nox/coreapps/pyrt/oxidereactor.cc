@@ -27,9 +27,7 @@
 #include <boost/function.hpp>
 #include <boost/intrusive_ptr.hpp>
 
-#include "netinet++/ipaddr.hh"
 #include "pycontext.hh"
-#include "resolver.hh"
 #include "threads/cooperative.hh"
 
 using namespace std;
@@ -168,11 +166,12 @@ revise_events()
 }
 
 oxidereactor::oxidereactor(PyObject* ctxt, PyObject *name) {
-    if (!SWIG_Python_GetSwigThis(ctxt) || !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+    if (!swigo || !swigo->ptr) {
         throw runtime_error("Unable to access Python context.");
     }
     
-    c = ((PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr)->c;
+    c = ((PyContext*)swigo->ptr)->c;
 
     pycb_thread = co_fsm_create(&co_group_coop, run_python_callbacks);
 }
@@ -261,8 +260,10 @@ oxidereactor::callLater(long delay_secs, long delay_usecs,
     }
     
     PyObject* pdc = PyObject_GetAttrString(pydelayedcall, (char*)"dc");
-    Py_DECREF(pdc); // pdc is a new reference.
-    delayedcall* dc = (delayedcall*)(SWIG_Python_GetSwigThis(pdc))->ptr;
+    // dc is a new reference
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(pdc);
+    Py_XDECREF(pdc);
+    delayedcall* dc = (delayedcall*)((SwigPyObject*)swigo)->ptr;
     const timeval tv = {delay_secs, delay_usecs};
     {
         boost::intrusive_ptr<PyObject> cptr(pydelayedcall, true);
@@ -273,41 +274,6 @@ oxidereactor::callLater(long delay_secs, long delay_usecs,
                         boost::intrusive_ptr<PyObject> >, cptr, aptr);
         dc->timer = c->post(cb, tv);
     }   
-
-    Py_RETURN_NONE;
-}
-
-void
-oxidereactor::blocking_resolve(const char* name,
-			       const boost::intrusive_ptr<PyObject>& cb) {
-    ipaddr addr;
-    string resolved_address;
-
-    if (get_host_by_name(name, addr) == 0) {
-        addr.fill_string(resolved_address);
-    }
-
-    PyObject* t = PyTuple_New(1);
-    PyTuple_SET_ITEM(t, 0, PyString_FromString(resolved_address.c_str()));
-
-    boost::intrusive_ptr<PyObject> aptr(t, false);
-    container::Component::Timer_Callback f = 
-      boost::bind(call_python_function<
-		  boost::intrusive_ptr<PyObject> >, cb, aptr);
-
-    const timeval tv = { 0, 0 };
-    c->post(f, tv);
-}
-
-
-PyObject*
-oxidereactor::resolve(PyObject* name, PyObject* callback) {
-    const timeval tv = { 0, 0 };
-    container::Component::Timer_Callback f = 
-      boost::bind(&oxidereactor::blocking_resolve, this,
-		  PyString_AsString(name),
-		  boost::intrusive_ptr<PyObject>(callback, true));
-    c->post(f, tv);
 
     Py_RETURN_NONE;
 }

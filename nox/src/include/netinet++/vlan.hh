@@ -40,7 +40,7 @@ struct vlan
     uint16_t id() const;
     void     set_id(uint16_t id);
     uint8_t  pcp() const;
-    void     set_pcp(uint8_t pcp);
+    void     set_pcp(uint16_t pcp);
 
     uint16_t proto() const;
 
@@ -67,7 +67,7 @@ vlan::pcp() const
 //-----------------------------------------------------------------------------
 inline
 void
-vlan::set_pcp(uint8_t pcp)
+vlan::set_pcp(uint16_t pcp)
 { tci = (tci & ~htons(PCP_MASK)) |
         htons((((uint16_t)pcp) << PCP_SHIFT) & PCP_MASK); }
 //-----------------------------------------------------------------------------

@@ -2,7 +2,6 @@
 #define __LOG_ENTRY_HH__
 
 #include "bindings_storage/bindings_storage.hh" 
-#include "data/datatypes.hh" 
 
 namespace vigil { 
 namespace applications { 
@@ -53,12 +52,9 @@ class LogEntry {
     // AddMacKey(1,SRC) and setName('bob',USER,SRC), even if there
     // were many other user names associated with mac = 1, the {su}
     // format string would be replaced only with the user name 'bob'
-    void setName(int64_t uid, PrincipalType type,Direction dir) {
-      PrincipalList &nlist = (dir == SRC) ? src_names : dst_names;
-      Principal p; 
-      p.id = uid; 
-      p.type = type;  
-      nlist.push_back(p);
+    void setName(const std::string &name, Name::Type name_type,Direction dir) {
+      NameList &nlist = (dir == SRC) ? src_names : dst_names;
+      nlist.push_back(Name(name,name_type));
     }
 
     // This is similar to a setName() call, but handles the situation when
@@ -69,16 +65,14 @@ class LogEntry {
     // unlikely that you need to use this function. 
     // Note: if the same Log_Entry object has a location set by both setName()
     // and setNameByLocation(), the name given to setName() takes precedence. 
-/*
-
     void setNameByLocation(const datapathid &dpid, uint16_t port, Direction dir) {
       storage::Query &q = (dir == SRC) ? src_locname_query : dst_locname_query;
       q.clear(); 
-      q["principal_type"] = (int64_t) Name::LOCATION; 
+      q["name_type"] = (int64_t) Name::LOCATION;
       q["dpid"] = (int64_t) dpid.as_host(); 
       q["port"] = (int64_t) port; 
     } 
-*/
+
     // add*Key functions
     // Only the last key supplied for each direction is kept and used.  
 
@@ -105,7 +99,7 @@ class LogEntry {
     Level level;
     storage::Query src_key_query,dst_key_query,
       src_locname_query,dst_locname_query; 
-    PrincipalList src_names, dst_names; 
+    NameList src_names, dst_names;
 } ; 
 
 

@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -46,12 +46,9 @@ public:
     PyObject *get_names(const storage::Query &query,
                         bool loc_tuples, PyObject *cb);
 
-    PyObject *get_host_users(int64_t hostname, PyObject *cb);
-    PyObject *get_user_hosts(int64_t username, PyObject *cb);
-
     PyObject *get_all_names(int name_type, PyObject *cb);
 
-    PyObject *get_entities_by_name(int64_t name, int name_type,
+    PyObject *get_entities_by_name(string name, int name_type,
                                    PyObject *cb);
 
     // functions for link bindings
@@ -69,8 +66,8 @@ public:
     PyObject* get_names_for_location(const datapathid &dpid, uint16_t port,
                                      int name_type, PyObject *cb);
 
-    PyObject* get_location_by_name(int64_t name,
-                                   int name_type, PyObject *cb);
+    PyObject* get_location_by_name(string name,
+                                  int name_type, PyObject *cb);
 
 
 protected:

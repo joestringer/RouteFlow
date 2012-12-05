@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components:components xmlns:components="http://www.noxrepo.org/components.xsd">
+  <component>
+    <name>wimaxwifihandover</name>
+    <library>wimaxwifihandover</library>
+    <dependency><name>routing</name></dependency>
+    <dependency><name>routeinstaller</name></dependency>
+    <dependency><name>messenger</name></dependency>
+    <dependency><name>flowdb</name></dependency>
+    <dependency><name>mobiledb</name></dependency>
+    <dependency><name>snmptrap</name></dependency>
+  </component>
+</components:components>

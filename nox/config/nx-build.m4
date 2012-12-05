@@ -36,12 +36,10 @@ dnl NX_BUILDNR
 dnl
 dnl If --with-build-number=NUMBER is used, substitutes a Makefile
 dnl variable BUILDNR with NUMBER, and sets a C preprocessor variable
-dnl BUILDNR to the same.  It also sets the C preprocessor variable
-dnl BUILDNR_SUFFIX to "+buildNUMBER".
+dnl BUILDNR to "+buildNUMBER".
 dnl
 dnl Otherwise, if --with-build-number is not used, substitutes BUILDNR
-dnl with 0 sets C preprocessor variable BUILDNR to 0, and C preprocessor
-dnl variable BUILDNR_SUFFIX to "".
+dnl with 0 and sets C preprocessor variable BUILDNR to "".
 AC_DEFUN([NX_BUILDNR],
   [AC_ARG_WITH(
      [build-number],
@@ -55,14 +53,12 @@ AC_DEFUN([NX_BUILDNR],
      [[0-9]][[0-9]][[0-9]][[0-9]] | \
      [[0-9]][[0-9]][[0-9]][[0-9]][[0-9]])
        BUILDNR=$with_build_number
-       buildnr_suffix='"+build'$BUILDNR'"'
-       BUILDNR_SUFFIX='+build'$BUILDNR
+       buildnr='"+build'$BUILDNR'"'
        AC_MSG_RESULT([$with_build_number])
        ;; # (
      ''|no)
        BUILDNR=0
-       buildnr_suffix='""'
-       BUILDNR_SUFFIX=''
+       buildnr='""'
        AC_MSG_RESULT([none])
        ;; # (
      *)
@@ -70,9 +66,6 @@ AC_DEFUN([NX_BUILDNR],
        ;;
    esac
    AC_SUBST([BUILDNR])
-   AC_SUBST([BUILDNR_SUFFIX])
-   AC_DEFINE_UNQUOTED([BUILDNR], [$BUILDNR],
-     [Official build number as a number])
-   AC_DEFINE_UNQUOTED([BUILDNR_SUFFIX], [$buildnr_suffix],
+   AC_DEFINE_UNQUOTED([BUILDNR], [$buildnr],
      [Official build number as a VERSION suffix string, e.g. "+build123",
       or "" if this is not an official build.])])

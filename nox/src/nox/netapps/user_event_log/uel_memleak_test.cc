@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -32,6 +32,8 @@
 #include "user_event_log/user_event_log.hh" 
 #include "threads/cooperative.hh"
 
+#include "storage/transactional-storage-blocking.hh"
+
 #include <malloc.h> 
 
 #include "nox.hh"
@@ -53,7 +55,7 @@ class UELMemleakTest
 public:
 
     UELMemleakTest(const container::Context* c,
-                const json_object* xml) 
+                const xercesc::DOMNode* xml)
         : Component(c), trigger_count(0), counter(0)  {
     }
 
@@ -64,6 +66,7 @@ public:
         resolve(uel);
         resolve(store); 
         resolve(b_store); 
+        resolve(namemanager);
 
         // disables auto-clear, which messes up 
         // our trigger logic
@@ -74,6 +77,8 @@ public:
     }
 
 private:
+    storage::Sync_transactional_connection_ptr conn;
+
     void waitForX(int x) {
       for(int i = 0; i < x; ++i) 
         test_sem->down(); 
@@ -84,8 +89,8 @@ private:
         const storage::Trigger_id &tid);
     void remove_trigger_callback(const storage::Result &result); 
     void log_entry_cb(int64_t logid, int64_t ts, const string &app, int level, 
-                      const string &msg, const PrincipalList &src_names, 
-                      const PrincipalList &dst_names);
+                      const string &msg, const NameList &src_names,
+                      const NameList &dst_names);
     void do_test(); 
     void do_clear();
     void clear_cb(); 
@@ -94,6 +99,7 @@ private:
     User_Event_Log *uel; // create message 
     storage::Async_storage *store; // confirm that messages were created
     Bindings_Storage *b_store;
+    NameManager *namemanager;
     int64_t triggered_logid; 
     int trigger_count, counter; 
 
@@ -142,11 +148,10 @@ void UELMemleakTest::trigger_inserted(const storage::Result &result,
 } 
 
 void UELMemleakTest::setup_bindings() { 
-    // for actual names, must register with data_cache else all come up as
-    // unknown
-    int64_t locid = 5;
-    int64_t userid = 5;
-    int64_t hostid = 5;
+    uint32_t locid = namemanager->get_principal_id("discovered;loc1",
+                                                   directory::LOCATION_PRINCIPAL, false, true);
+    uint32_t userid = namemanager->get_principal_id("discovered;dan", directory::USER_PRINCIPAL, false, true);
+    uint32_t hostid = namemanager->get_principal_id("discovered;javelina", directory::HOST_PRINCIPAL, false, true);
     b_store->store_location_binding(ethernetaddr(1), locid);
     b_store->store_host_binding(hostid, ethernetaddr(1), 1);
     b_store->store_user_binding(userid, hostid);
@@ -218,8 +223,8 @@ void UELMemleakTest::clear_cb() {
 
 void UELMemleakTest::log_entry_cb(int64_t logid, int64_t ts, const string &app, 
                                   int level, const string &msg, 
-                                  const PrincipalList &src_names, 
-                                  const PrincipalList &dst_names){
+                                  const NameList &src_names,
+                                  const NameList &dst_names){
     //printf("got log entry with logid = %lld \n", logid); 
     test_sem->up();
 }

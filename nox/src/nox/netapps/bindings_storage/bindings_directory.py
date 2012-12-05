@@ -4,7 +4,9 @@ from twisted.internet import defer
 from nox.lib.directory import *
 from nox.netapps.storage.storage import Storage,StorageException
 from nox.netapps.bindings_storage.pybindings_storage import Name,pybindings_storage
+from nox.netapps.authenticator.pynamemanager import PyNameManager
 from nox.lib.core import Component
+from nox.netapps.directory.directorymanager import directorymanager
 
 # FIXME: These methods need to be converted to use deferreds so we
 # can have better error handling should they ever throw an exception
@@ -37,6 +39,7 @@ class get_matching_rows_op:
             filter_match = False
             break
       if filter_match == True: 
+        row["name"] = self.nm.get_name(row["name"])
         self.rows.append(row)
         break 
 
@@ -44,23 +47,20 @@ class get_matching_rows_op:
     d.addCallback(self.get_cb) 
     d.addErrback(self.get_eb) 
 
-  def __init__(self, table_name, ndb, filters, cb): 
-    if True:
-      raise Exception('name manager removed, Doesn\'t convert database names to IDs')
-    self.filters = filters
-    self.cb = cb 
-    self.rows = [] 
-    self.ndb = ndb
-    
-    d = ndb.get(table_name, {}) 
-    d.addCallback(self.get_cb)
-    d.addErrback(self.get_eb)
+  def __init__(self, table_name, ndb, nm, filters, cb):
+      self.filters = filters
+      self.cb = cb
+      self.rows = []
+      self.ndb = ndb
+      self.nm = nm
+
+      d = ndb.get(table_name, {})
+      d.addCallback(self.get_cb)
+      d.addErrback(self.get_eb)
 
 class name_for_name_op: 
 
   def __init__(self,name_in, type_in,type_out,bs,cb):
-    if True:
-      raise Exception('name needs to be converted to id before can query bindings_directory')
     self.callback = cb
     self.bs = bs
     self.items = [] 
@@ -164,6 +164,10 @@ class BindingsDirectory(Component, Directory):
         if self.bs is None:
           raise Exception("Unable to resolve required component '%s'"
                             %str(pybindings_storage))
+        self.nm = self.resolve(PyNameManager)
+        if self.nm is None:
+          raise Exception("Unable to resolve required component '%s'"
+                            %str(PyNameManager))
 
   def getInterface(self):
       return str(BindingsDirectory) 
@@ -198,8 +202,8 @@ class BindingsDirectory(Component, Directory):
             ret.append(r['name'])
           d.callback(ret); 
 
-        mr = get_matching_rows_op("bindings_location", self.store,
-                                  [query],cb ) 
+        mr = get_matching_rows_op("bindings_location", self.store, \
+                                    self.nm, [query],cb )
         return d
 
 

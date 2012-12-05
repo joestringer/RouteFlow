@@ -34,6 +34,8 @@
 #ifndef THREADS_SIGNALS_HH
 #define THREADS_SIGNALS_HH 1
 
+#include <cstdio>
+
 namespace vigil {
 
 struct Signal_group_impl;

@@ -32,7 +32,7 @@ class simple_cc_py_app
     : public Component {
 public:
     simple_cc_py_app(const Context* c,
-                    const json_object*) 
+                    const xercesc::DOMNode*)
         : Component(c) {
     }
 

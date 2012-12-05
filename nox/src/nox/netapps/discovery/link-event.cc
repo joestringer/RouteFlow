@@ -18,6 +18,8 @@
 #include "component.hh"
 #include "link-event.hh"
 
+#include <xercesc/dom/DOM.hpp>
+
 #include "vlog.hh"
 
 using namespace std;
@@ -45,7 +47,7 @@ class LinkEvent_component
     : public Component {
 public:
     LinkEvent_component(const Context* c,
-                     const json_object*) 
+                     const xercesc::DOMNode*) 
         : Component(c) {
     }
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2009 The Board of Trustees of The Leland Stanford
+/* Copyright (c) 2008 The Board of Trustees of The Leland Stanford
  * Junior University
  * 
  * We are making the OpenFlow specification and associated documentation
@@ -39,11 +39,10 @@
 /* Attributes that can be attached to the datapath's netlink messages. */
 enum {
 	DP_GENL_A_UNSPEC,
-	DP_GENL_A_DP_IDX,	 /* Datapath device index. */
+	DP_GENL_A_DP_IDX,	 /* Datapath Ethernet device name. */
 	DP_GENL_A_PORTNAME,	 /* Device name for datapath port. */
 	DP_GENL_A_MC_GROUP,	 /* Generic netlink multicast group. */
 	DP_GENL_A_OPENFLOW,  /* OpenFlow packet. */
-	DP_GENL_A_DP_NAME,	 /* Datapath device name. */
 
 	__DP_GENL_A_MAX,
 	DP_GENL_A_MAX = __DP_GENL_A_MAX - 1

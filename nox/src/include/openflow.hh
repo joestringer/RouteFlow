@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -34,8 +34,6 @@
 #include "tcp-socket.hh"
 #include "ssl-socket.hh"
 
-#define OFP_EXPERIMENTAL_VERSION 0x80
-
 namespace vigil {
 
 class Buffer;
@@ -61,20 +59,11 @@ public:
     virtual std::string get_ssl_fingerprint() { 
         return "non-SSL connection, no fingerprint"; 
     } 
-    virtual uint32_t get_local_ip() { 
-        return 0; // 0.0.0.0 indicates failure
-    }
-    virtual uint32_t get_remote_ip() { 
-        return 0; // 0.0.0.0 indicates failure
-    }
+
     /* Core functionality. */
     int connect(bool block);
     int send_openflow(const ofp_header*, bool block);
     std::auto_ptr<Buffer> recv_openflow(int& error, bool block);
-
-    // Buffer to handle OFMP extended data messages
-    std::auto_ptr<Buffer> ext_data_buffer;
-    uint32_t ext_data_xid;
 
     void connect_wait();
     void send_openflow_wait();
@@ -94,7 +83,6 @@ public:
     int send_stats_request(ofp_stats_types type);
     int send_echo_request();
     int send_echo_reply(const ofp_header* request);
-    int send_barrier_request();
     int send_add_snat(uint16_t port, 
                     uint32_t ip_addr_start, uint32_t ip_addr_end,
                     uint16_t tcp_start, uint16_t tcp_end,
@@ -106,10 +94,6 @@ public:
     int send_remote_command(const std::string& command,
                             const std::vector<std::string>& args);
 
-    int send_ofmp_capability_request();
-    int send_ofmp_resources_request();
-    int send_ofmp_config_request();
-
     /* Naming. */
     virtual std::string to_string() = 0;
 
@@ -118,10 +102,6 @@ public:
     /* Allow events to be associated with a particular datapath */
     void set_datapath_id(datapathid id_) { datapath_id = id_; }
     datapathid get_datapath_id() const { return datapath_id; }
-
-    /* Allow events to be associated with a particular datapath */
-    void set_mgmt_id(datapathid id_) { mgmt_id = id_; }
-    datapathid get_mgmt_id() const { return mgmt_id; }
 
 protected:
     virtual int do_connect() = 0;
@@ -133,7 +113,6 @@ protected:
 
 private:
     datapathid datapath_id;
-    datapathid mgmt_id;
     enum State {
         /* This is the ordinary progression of states. */
         S_CONNECTING,           /* Underlying vconn is not connected. */
@@ -182,8 +161,6 @@ public:
     std::string to_string();
     Connection_type get_conn_type(); 
     std::string get_ssl_fingerprint();
-    uint32_t get_local_ip();  
-    uint32_t get_remote_ip();  
 private:
     virtual int do_connect();
     virtual int do_send_openflow(const ofp_header*);
@@ -192,10 +169,7 @@ private:
     virtual void do_send_openflow_wait();
     virtual void do_recv_openflow_wait();
 
-    Auto_fsm tx_fsm;
-    void tx_run();
     int send_tx_buf();
-
     int do_read(void *, size_t);
 
     std::auto_ptr<Async_stream> stream;

@@ -8,13 +8,15 @@ data_DATA = \
 	noxca.cnf
 
 pkgsysconf_DATA = \
+	log4cxx.xml \
 	noxca.key.insecure \
 	noxca.cert \
-	nox.json
+	nox.xml
 
 EXTRA_DIST = \
+	log4cxx.xml \
 	noxca.cnf \
-	nox.json
+	nox.xml
 
 noxca.key.insecure noxca.cert :
 	@echo "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"

@@ -1,8 +1,6 @@
 include ../../../Make.vars 
 
-SUBDIRS = t
-
-EXTRA_DIST = meta.json		\
+EXTRA_DIST = meta.xml		\
 	__init__.py \
 	bindings_directory.py \
 	pybindings_storage.i
@@ -34,7 +32,7 @@ bindings_storage_la_LDFLAGS = -module -export-dynamic
 #bs_memleak_test_la_SOURCES = bs_memleak_test.cc 
 #bs_memleak_test_la_LDFLAGS = -module -export-dynamic
 
-NOX_RUNTIMEFILES = meta.json	
+NOX_RUNTIMEFILES = meta.xml
 
 if PY_ENABLED
 
@@ -45,7 +43,7 @@ NOX_RUNTIMEFILES += __init__.py \
 NOX_PYBUILDFILES = pybindings_storage.py								
 
 pybindings_storage_wrap.cc pybindings_storage.py: pybindings_storage.i bs_datastructures.i 
-	$(SWIG) $(SWIG_PYTHON_OPT) -I$(top_srcdir)/src/nox/lib/ -outdir $(builddir)/. -o pybindings_storage_wrap.cc -module pybindings_storage $(srcdir)/pybindings_storage.i
+		swig -I$(top_srcdir)/src/nox/lib/ -outdir $(builddir)/. -o pybindings_storage_wrap.cc -c++ -python -module pybindings_storage $(srcdir)/pybindings_storage.i
 
 pkglib_LTLIBRARIES += _pybindings_storage.la
 _pybindings_storage_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/src/nox -I$(srcdir)/../ -I$(top_builddir)/src/nox/ -I$(top_srcdir)/src/nox/coreapps/

@@ -19,7 +19,6 @@
 #define  CLASSIFIER_HH
 
 #include <errno.h>
-#include <stdint.h>
 #include <boost/scoped_ptr.hpp>
 //#include <boost/shared_ptr.hpp>
 
@@ -60,7 +59,6 @@ public:
 
     uint32_t add_rule(uint32_t, const Expr&, const Action&);
     bool change_rule_priority(uint32_t, uint32_t);
-    const Rule_ptr get_rule(uint32_t);
     bool delete_rule(uint32_t);
     template<typename Data>
     uint32_t delete_rules(const Data*);
@@ -245,18 +243,6 @@ Classifier<Expr, Action>::change_rule_priority(uint32_t id, uint32_t priority)
     return node->change_rule_priority(id, priority);
 }
 
-template<class Expr, typename Action>
-const typename Classifier<Expr, Action>::Rule_ptr
-Classifier<Expr, Action>::get_rule(uint32_t id)
-{
-    typename Id_map::iterator entry = rules.find(id);
-
-    if (entry == rules.end()) {
-        return NULL;
-    }
-
-    return entry->second;
-}
 
 /*
  * Deletes from the classifier the rules with id 'id'.  Returns 'true' if the

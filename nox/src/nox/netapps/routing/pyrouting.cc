@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -26,11 +26,12 @@ namespace applications {
 PyRouting_module::PyRouting_module(PyObject* ctxt)
     : routing(0)
 {
-    if (!SWIG_Python_GetSwigThis(ctxt) || !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+    if (!swigo || !swigo->ptr) {
         throw std::runtime_error("Unable to access Python context.");
     }
 
-    c = ((PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr)->c;
+    c = ((PyContext*)swigo->ptr)->c;
 }
 
 void
@@ -73,8 +74,7 @@ PyRouting_module::setup_route(const Flow& flow,
                               bool check_nat)
 {
     return routing->setup_route(flow, route, inport, outport,
-                                flow_timeout, bufs, check_nat,
-                                NULL, NULL, NULL, NULL);
+                                flow_timeout, bufs, check_nat, NULL, NULL);
 }
 
 bool
@@ -85,7 +85,7 @@ PyRouting_module::setup_flow(const Flow& flow, const datapathid& dp,
                              const Nonowning_buffer& actions, bool check_nat)
 {
     return routing->setup_flow(flow, dp, outport, bid, buf, flow_timeout,
-                               actions, check_nat, NULL, NULL, NULL, NULL);
+                               actions, check_nat, NULL, NULL);
 }
 
 bool
@@ -96,7 +96,7 @@ PyRouting_module::send_packet(const datapathid& dp, uint16_t inport,
                               bool check_nat, const Flow& flow)
 {
     return routing->send_packet(dp, inport, outport, bid, buf, actions,
-                                check_nat, flow, NULL, NULL, NULL, NULL);
+                                check_nat, flow, NULL, NULL);
 }
 
 }

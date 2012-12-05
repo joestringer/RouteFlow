@@ -125,24 +125,4 @@ void register_file_server(const std::string& file_name, uint16_t port)
 new File_server(file_name, port);
 }
 
-void 
-FileServerTest::configure(const Configuration*)
-{
-    register_handler<Bootstrap_complete_event>
-        (boost::bind(&FileServerTest::handle_bootstrap, this,
-                     _1));
-
-}
-
-void 
-FileServerTest::install()
-{
-}
-
-Disposition
-FileServerTest::handle_bootstrap(const Event& e)
-{
-    new File_server(file_name, port);
-}
-
 } // namespace vigil

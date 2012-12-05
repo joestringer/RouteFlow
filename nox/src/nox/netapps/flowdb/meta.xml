@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components:components xmlns:components="http://www.noxrepo.org/components.xsd">
+  <component>
+    <name>flowdb</name>
+    <library>flowdb</library>
+    <dependency><name>topology</name></dependency>
+  </component>
+  <component>
+    <name>flowdblogger</name>
+    <library>flowdblogger</library>
+    <dependency><name>flowdb</name></dependency>
+    <dependency><name>sqlitelog</name></dependency>
+  </component>
+  <component>
+    <name>flowroutecache</name>
+    <library>flowroutecache</library>
+    <dependency><name>flowdb</name></dependency>
+    <dependency><name>routeinstaller</name></dependency>
+  </component>
+</components:components>

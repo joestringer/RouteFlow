@@ -113,6 +113,7 @@ public:
         NW_SRC,
         NW_DST,
         NW_PROTO,
+        NW_TOS,
         TP_SRC,
         TP_DST,
         GROUP_SRC,
@@ -138,12 +139,13 @@ public:
     uint8_t dl_dst[6];
     uint32_t nw_src;
     uint32_t nw_dst;
+    uint8_t nw_proto;
+    uint8_t nw_tos;
     uint16_t tp_src;
     uint16_t tp_dst;
     uint32_t group_src;
     uint32_t group_dst;
     uint32_t wildcards;
-    uint8_t nw_proto;
 };
 
 
@@ -178,10 +180,10 @@ get_field<Packet_expr, Packet_expr>(uint32_t field, const Packet_expr& expr,
  */
 
 template <>
-bool matches(uint32_t rule_id, const Packet_expr&, const Flow&);
+bool matches(const Packet_expr&, const Flow&);
 
 template <>
-bool matches(uint32_t rule_id, const Packet_expr&, const Packet_expr&);
+bool matches(const Packet_expr&, const Packet_expr&);
 
 } // namespace vigil
 

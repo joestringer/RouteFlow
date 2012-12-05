@@ -18,7 +18,6 @@
 /* Tests Pollable insertion and removal. */
 #include "event-dispatcher.hh"
 #include "threads/cooperative.hh"
-#include <cstdio>
 
 using namespace vigil;
 

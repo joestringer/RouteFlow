@@ -9,7 +9,7 @@ import simplejson
 import urllib
 
 # TODO: need to set the path for this
-from nox.webapps.webserviceclient.simple import PersistentLogin, NOXWSClient
+from nox.apps.coreui.webserviceclient import PersistentLogin, NOXWSClient
 
 
 def usage():

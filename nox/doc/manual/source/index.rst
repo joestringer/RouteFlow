@@ -7,7 +7,7 @@ Introduction
 ---------------
 
 This document provides installation, use, and development instructions
-for NOX v0.6.0.  
+for NOX v0.3.0.
 
 NOX is a network control platform. [#]_  Its purpose is to provide a
 high-level, programmatic interface on top of which network management
@@ -23,8 +23,8 @@ abstracted view of the network resources, including the network topology
 and the location of all detected hosts.
 
 NOX is designed to support both large enterprise networks of hundreds of
-switches (supporting many thousands of hosts) and smaller networks of a
-few hosts.
+switches (supporting many thousands of hosts) and home networks with a
+single switch running on a low-performance embedded platform.
 
 The primary goals of NOX are:
 
@@ -66,6 +66,7 @@ Contents:
    app
    core-api
    app-index
+   noxbox
 
 .. Indices and tables
 .. ==================

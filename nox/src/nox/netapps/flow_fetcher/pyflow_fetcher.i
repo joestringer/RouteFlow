@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with NOX.  If not, see <http://www.gnu.org/licenses/>.
  */
-%module "nox.netapps.flow_fetcher.pyflow_fetcher"
+%module "nox.netapps.pyflow_fetcher"
 
 
 %{

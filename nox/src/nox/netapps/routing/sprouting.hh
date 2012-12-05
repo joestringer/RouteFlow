@@ -20,6 +20,7 @@
 
 #include "authenticator/flow_in.hh"
 #include "component.hh"
+#include "configuration/properties.hh"
 #include "openflow/openflow.h"
 #include "routing.hh"
 
@@ -40,7 +41,7 @@ class SPRouting
 
 public:
     SPRouting(const container::Context*,
-              const json_object*);
+              const xercesc::DOMNode*);
 
     ~SPRouting() { }
 
@@ -51,6 +52,8 @@ public:
 
 private:
     Routing_module *routing;
+    storage::Async_transactional_storage *tstorage;
+    configuration::Properties *properties;
     Routing_module::RoutePtr empty;
     bool passive;
 

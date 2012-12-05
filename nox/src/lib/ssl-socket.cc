@@ -164,23 +164,6 @@ Ssl_socket::connect_completed(int error)
     connect_error = error;
 }
 
-uint32_t Ssl_socket::get_local_ip() { 
-  struct sockaddr_in addr; 
-  socklen_t len = sizeof(addr); 
-  int res = ::getsockname(fd.get(),(struct sockaddr*)&addr,&len); 
-  if(res)
-    return 0; // 0.0.0.0 indicates error
-  return (uint32_t) addr.sin_addr.s_addr; 
-} 
-
-uint32_t Ssl_socket::get_remote_ip() { 
-  struct sockaddr_in addr; 
-  socklen_t len = sizeof(addr); 
-  int res = ::getpeername(fd.get(),(struct sockaddr*)&addr,&len); 
-  if(res)
-    return 0; // 0.0.0.0 indicates error
-  return (uint32_t) addr.sin_addr.s_addr; 
-} 
 
 std::string Ssl_socket::get_peer_cert_fingerprint() { 
   unsigned char buf[EVP_MAX_MD_SIZE]; 

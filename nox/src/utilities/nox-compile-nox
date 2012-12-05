@@ -1,0 +1,6 @@
+#!/bin/sh
+cd $NOXPATH/noxcore
+make clean
+./boot.sh
+./configure --with-python=`which python2.5`
+make

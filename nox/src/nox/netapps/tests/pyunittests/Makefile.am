@@ -8,6 +8,7 @@ NOX_RUNTIMEFILES =  \
 	controller_test.py\
 	componentws_test.py\
 	dhcp_parse_test.py\
+	directorymanager_test.py\
 	dns_parse_test.py\
 	eap_parse_test.py\
 	ethernet_parse_test.py\
@@ -16,8 +17,12 @@ NOX_RUNTIMEFILES =  \
 	ipv4_parse_test.py\
 	lldp_parse_test.py\
 	mod_test.py\
+	properties_test.py\
 	routing_test.py\
 	simple_async_test.py\
+	storage_table_util_test.py\
+	storage_test_base.py\
+	storage_test.py\
 	tcp_parse_test.py\
 	transactional_storage_test.py\
 	udp_parse_test.py\

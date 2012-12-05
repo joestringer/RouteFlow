@@ -16,8 +16,19 @@
  * along with NOX.  If not, see <http://www.gnu.org/licenses/>.
  */
 %{
-#include "core_events.hh"
+#include "bootstrap-complete.hh"
+#include "datapath-join.hh"
+#include "datapath-leave.hh"
+#include "flow-removed.hh"
+#include "flow-mod-event.hh"
 #include "link-event.hh"
+#include "aggregate-stats-in.hh"
+#include "desc-stats-in.hh"
+#include "table-stats-in.hh"
+#include "port-stats-in.hh"
+#include "packet-in.hh"
+#include "port-status.hh"
+#include "echo-request.hh"
 #include "pyrt/pycontext.hh"
 #include "pyrt/pyevent.hh"
 #include "pyrt/pyglue.hh"
@@ -78,17 +89,18 @@ struct Link_event
                                                   : le.action == Link_event::REMOVE ? "remove"
                                                   : "unknown"));
 
-        ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(proxy);
+        ((Event*)swigo->ptr)->operator=(e);
     }
 
     static void register_event_converter(PyObject *ctxt) {
-        if (!SWIG_Python_GetSwigThis(ctxt) || 
-            !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+        if (!swigo || !swigo->ptr) {
             throw std::runtime_error("Unable to access Python context.");
         }
         
         vigil::applications::PyContext* pyctxt = 
-            (vigil::applications::PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr;
+            (vigil::applications::PyContext*)swigo->ptr;
         pyctxt->register_event_converter<Link_event>
             (&Link_event_fill_python_event);
     }

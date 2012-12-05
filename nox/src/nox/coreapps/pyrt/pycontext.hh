@@ -57,9 +57,6 @@ public:
      * configuration internals to python */
     Kernel*   get_kernel();
 
-    /* Get platform version string. */
-    const char* get_version();
-
     /* Posts an event.
      */
     void post(Event*);
@@ -117,11 +114,11 @@ public:
      *
      */
     void send_flow_command(uint64_t datapath_id, ofp_flow_mod_command command, 
-                           const ofp_match& match, 
-			   uint16_t idle_timeout, uint16_t hard_timeout, 
-			   const Nonowning_buffer&, uint32_t buffer_id,
+                           const ofp_match& match, uint16_t idle_timeout,
+                           uint16_t hard_timeout, const Nonowning_buffer&,
+                           uint32_t buffer_id,
                            uint16_t priority=OFP_DEFAULT_PRIORITY,
-			   uint64_t cookie=0);
+                           uint64_t cookie=0);
 
     int close_openflow_connection(uint64_t datapathid);
 
@@ -132,8 +129,6 @@ public:
                     ethernetaddr mac_addr, 
                     uint16_t mac_timeout=0);
     int send_del_snat(uint64_t dpid, uint16_t port);
-    uint32_t get_switch_controller_ip(uint64_t dpid);
-    uint32_t get_switch_ip(uint64_t dpid);
 
     int send_switch_command(uint64_t dpid, const std::string command, const std::string args );
     int send_switch_command(uint64_t dpid, const std::string command);
@@ -142,14 +137,18 @@ public:
 
     void send_stats_request(uint64_t datapath_id, ofp_stats_types type,
             const uint8_t* data, size_t data_size );
+    void send_stats_request_with_xid(uint64_t datapath_id, ofp_stats_types type,
+            const uint8_t* data, size_t data_size, uint32_t xid ); // dgu
 
     void send_table_stats_request(uint64_t datapath_id);
-    void send_port_stats_request(uint64_t datapath_id, uint16_t port);
+    void send_port_stats_request(uint64_t datapath_id, uint16_t port=OFPP_NONE);
+    void send_port_stats_request_with_xid(uint64_t datapath_id, uint32_t xid); // dgu
     void send_desc_stats_request(uint64_t datapath_id);
     int send_port_mod(uint64_t datapath_id, uint16_t port_no, 
                       ethernetaddr addr, uint32_t mask, uint32_t config);
     void send_aggregate_stats_request(uint64_t datapath_ids, const
         struct ofp_match& match, uint8_t table_id);
+    int send_switch_config(uint64_t datapath_id, uint16_t flags);
 
     /* C++ context */
     const container::Context* ctxt;

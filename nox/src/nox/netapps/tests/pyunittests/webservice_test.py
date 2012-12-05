@@ -20,7 +20,7 @@ from nox.netapps.tests import unittest
 import httplib
 import re
 
-from nox.webapps.webserviceclient.async import AsyncNOXWSClient, AsyncNOXWSResponse, DefaultLogin, FailureExceptionLogin
+from nox.uiapps.coreui.asyncwebserviceclient import AsyncNOXWSClient, AsyncNOXWSResponse, DefaultLogin, FailureExceptionLogin
 
 pyunit = __import__('unittest')
 
@@ -31,7 +31,7 @@ class WebserviceTestCase(unittest.NoxTestCase):
 
     def install(self):
         lmgr = DefaultLogin(backup=FailureExceptionLogin())
-        self.wsc = AsyncNOXWSClient("127.0.0.1", 443, https=True, loginmgr=lmgr)
+        self.wsc = AsyncNOXWSClient("127.0.0.1", 8888, https=False, loginmgr=lmgr)
 
     def getInterface(self):
         return str(WebserviceTestCase)

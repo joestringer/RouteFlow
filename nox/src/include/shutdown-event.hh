@@ -22,12 +22,6 @@
 
 namespace vigil {
 
-/** \ingroup noxevents
- *
- * Thrown by NOX prior to system shutdown.
- *
- */
-
 class Shutdown_event
     : public Event
 {

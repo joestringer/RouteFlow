@@ -211,24 +211,6 @@ int Tcp_socket::shutdown(int how)
     return ::shutdown(fd, how) < 0 ? errno : 0;
 }
 
-uint32_t Tcp_socket::get_local_ip() { 
-  struct sockaddr_in addr; 
-  socklen_t len = sizeof(addr); 
-  int res = ::getsockname(fd.get(),(struct sockaddr*)&addr,&len); 
-  if(res)
-    return 0; // 0.0.0.0 indicates error
-  return (uint32_t) addr.sin_addr.s_addr; 
-} 
-
-uint32_t Tcp_socket::get_remote_ip() { 
-  struct sockaddr_in addr; 
-  socklen_t len = sizeof(addr); 
-  int res = ::getpeername(fd.get(),(struct sockaddr*)&addr,&len); 
-  if(res)
-    return 0; // 0.0.0.0 indicates error
-  return (uint32_t) addr.sin_addr.s_addr; 
-} 
-
 void Tcp_socket::set_reuseaddr(bool on)
 {
     if (setsockopt(SOL_SOCKET, SO_REUSEADDR, on)) {

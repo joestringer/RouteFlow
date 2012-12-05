@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -25,10 +25,9 @@ using namespace vigil::applications;
 struct Name {
   enum Type { NONE = 0, LOCATION, HOST, USER, SWITCH, PORT, LOC_TUPLE,
           LOCATION_GROUP, HOST_GROUP, USER_GROUP, SWITCH_GROUP}; 
-  Name(const string &n, Type t, int64_t i=-1);  
+  Name(const string &n, Type t);
   string name;
   Type name_type; 
-  int64_t id;
   bool operator==(const Name &o) const;
   bool operator<(const Name &o) const;
 }; 

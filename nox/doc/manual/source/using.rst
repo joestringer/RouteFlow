@@ -23,15 +23,14 @@ Overview
 
 A NOX network consists of (predictably) NOX and one or more OpenFlow
 (http://openflowswitch.org) switches.  In a standard configuration, NOX
-listens on a TCP port (SSL is supported though poorly documented at the
-moment) waiting for switches to connect.  Once switches connect,
+listens on a TCP (SSL is supported though poorly documented at the
+moment) port waiting for switches to connect.  Once switches connect,
 NOX will dispatch network packets to the running components, and send
 OpenFlow messages to the switches on behalf of the components.
 
-NOX can be run with one or more components by specifying the components
-name on the command line (NOX components are located in
-*src/nox/coreapps/*, *src/nox/netapps/*, *src/nox/webapps/*). For
-example::
+NOX can be run with one or more components by specifying the
+components name on the command line (NOX components are located at
+*src/nox/apps/*). For example::
 
     ./nox_core -i ptcp:2525 packetdump
 
@@ -63,6 +62,10 @@ For NOX to be useful, you will need the following hardware:
     OpenFlow protocol that NOX was built with.  To determine the version
     of OpenFlow that NOX was built again, you can use the -V command
     line option. 
+
+    If the version is out of date, you can recompile against another
+    OpenFlow source directory by using the ----with-openflow command line
+    option.
 
 *  At least one machine to use for the NOX controller.
 
@@ -164,7 +167,8 @@ components::
 
     nox_core -i ptcp:2525 switch packetdump
 
-Most of the available components in NOX depend on other components
-(these dependencies are shown in the component's meta.xml file).  NOX
-will automatically load all dependencies. 
+Most of the available components in NOX depend on other components.  For
+example SEPl (the NOX security policy language) relies on authenticator
+and routing among others.  NOX will automatically load all dependent
+components automatically.
 

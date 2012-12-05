@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -15,41 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with NOX.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-/** \mainpage
- *
- * \section overview Overview
- *
- * This is an automatically generated documentation for NOX.  Recent API are fairly
- * well-documented, though the documentation of olders API is pretty much hit 
- * and miss.  This serves well as a guide for individual components 
- * and detailed API calls.  You might want to refer to the wiki for tutorial and general
- * explanations.  The modules page (and pages therein) might be most interesting:
- *
- * - Some \ref noxapi "basic API" in NOX is documented here
- * - The existing \ref noxcomponents "components providing application functionality"
- * - The \ref noxevents "events core NOX and the components generate"
- * - A few \ref utility utilites distributed with NOX
- * - (Akan Datang)The \ref nox-programming-model "cooperative threading, asynchronous, event-based programming model"
- * 
- */
-
-/** \page nox-programming-model The NOX Programming Model
- *
- * ... Write a nice intro here ...
- *
- * \section prog-model-threading Cooperative Threading
- *
- * \section prog-model-async Asynchronous Programming
- * \subsection prog-model-async-c C++
- * \subsection prog-model-async-python Python
- *
- * \section prog-model-events Event Programming
- * \subsection prog-model-events-using Using Existing Events
- * \subsection prog-model-events-creating Creating New Events
- *
- */
-
 
 #include "config.h"
 
@@ -70,7 +35,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 
-#include <fstream>
+#include <xercesc/dom/DOM.hpp>
 
 #include "builtin/event-dispatcher-component.hh"
 #include "bootstrap-complete.hh"
@@ -79,7 +44,6 @@
 #include "dso-deployer.hh"
 #include "fault.hh"
 #include "kernel.hh"
-#include "leak-checker.hh"
 #include "openflow.hh"
 #include "nox.hh"
 #include "nox_main.hh"
@@ -93,8 +57,7 @@
 #include "log4cxx/helpers/exception.h"
 #include "log4cxx/xml/domconfigurator.h"
 #endif
-#include "json-util.hh"
-#include "json_object.hh"
+#include "xml-util.hh"
 
 #include "openflow/openflow.h"
 
@@ -165,21 +128,20 @@ void usage(const char* program_name)
            "  -i pcapt:FILE[:OUTFILE] same as \"pcap\", but delay packets based on pcap timestamps\n"
            "  -i pgen:                continuously generate packet-in events\n"
            "\nNetwork control options (must also specify an interface):\n"
-           "  -u, --unreliable        do not reconnect to interfaces on error\n",
-	   program_name, program_name, OFP_TCP_PORT, OFP_SSL_PORT);
-    leak_checker_usage();
-    printf("\nOther options:\n"
+           "  -u, --unreliable        do not reconnect to interfaces on error\n"
+           "\nOther options:\n"
            "  -c, --conf=FILE         set configuration file\n"
            "  -d, --daemon            become a daemon\n"
            "  -l, --libdir=DIRECTORY  add a directory to the search path for application libraries\n"
            "  -p, --pid=FILE          set pid file\n"
            "  -n, --info=FILE         set controller info file\n"
-	   "  -v, --verbose           set maximum verbosity level (for console)\n"
+	   "  -v, --verbose           set maximum verbosity level\n"
 #ifndef LOG4CXX_ENABLED
 	   "  -v, --verbose=CONFIG    configure verbosity\n"
 #endif
 	   "  -h, --help              display this help message\n"
-	   "  -V, --version           display version information\n");
+	   "  -V, --version           display version information\n",
+	   program_name, program_name, OFP_TCP_PORT, OFP_SSL_PORT);
     exit(EXIT_SUCCESS);
 }
 
@@ -220,22 +182,6 @@ int daemon() {
 
     return 0;
 }
-
-int start_gui() {
-    switch (fork()) {
-    case -1:
-        /* Fork failed! */
-        return -1;
-    case 0:
-        /* Daemon process */
-        char *args[] = {"", (char *) 0 };
-        execv("../../src/gui/qt-nox.py", args);
-        cout<<"Starting GUI\n";
-        break;
-    }
-    return 0;
-}
-
 
 bool verbose = false;
 #ifndef LOG4CXX_ENABLED
@@ -290,32 +236,27 @@ int main(int argc, char *argv[])
     const char* info_file = "./nox.info";
     bool reliable = true;
     bool daemon_flag = false;
-    bool gui_flag = false;
     vector<string> interfaces;
 
-    string conf = PKGSYSCONFDIR"/nox.json";
+    string conf = PKGSYSCONFDIR"/nox.xml";
 
     /* Where to look for configuration file.  Check local dir first,
        and then global install dir. */
     list<string> conf_dirs; 
-    conf_dirs.push_back(PKGSYSCONFDIR"/nox.json");
-    conf_dirs.push_back("etc/nox.json");
+    conf_dirs.push_back(PKGSYSCONFDIR"/nox.xml");
+    conf_dirs.push_back("etc/nox.xml");
 
     /* Add PKGLIBDIRS and local build dir to libdirectory */
     list<string> lib_dirs;
+    lib_dirs.push_back(PKGLIBDIR);
     lib_dirs.push_back("nox/coreapps/");
     lib_dirs.push_back("nox/netapps/");
-    lib_dirs.push_back("nox/webapps/");
+    lib_dirs.push_back("nox/uiapps/");
     lib_dirs.push_back("nox/ext/");
 
     for (;;) {
-        enum {
-            OPT_CHECK_LEAKS = UCHAR_MAX + 1,
-            OPT_LEAK_LIMIT
-        };
         static struct option long_options[] = {
             {"daemon",      no_argument, 0, 'd'},
-            {"gui",      no_argument, 0, 'g'},
             {"unreliable",  no_argument, 0, 'u'},
 
             {"interface",   required_argument, 0, 'i'},
@@ -324,9 +265,6 @@ int main(int argc, char *argv[])
             {"libdir",      required_argument, 0, 'l'},
             {"pid",         required_argument, 0, 'p'},
             {"info",        required_argument, 0, 'n'},
-
-            {"check-leaks", required_argument, 0, OPT_CHECK_LEAKS},
-            {"leak-limit",  required_argument, 0, OPT_LEAK_LIMIT},
 
 #ifdef LOG4CXX_ENABLED
             {"verbose",     no_argument, 0, 'v'},
@@ -350,10 +288,6 @@ int main(int argc, char *argv[])
         switch (c) {
         case 'd':
             daemon_flag = true;
-            break;
-            
-        case 'g':
-            gui_flag = true;
             break;
 
         case 'u':
@@ -397,18 +331,10 @@ int main(int argc, char *argv[])
             info_file = optarg;
             break;
 
-        case OPT_CHECK_LEAKS:
-            leak_checker_start(optarg);
-            break;
-
-        case OPT_LEAK_LIMIT:
-            leak_checker_set_limit(strtoll(optarg,NULL,10));
-            break;
-
         case 'V':
             hello(program_name);
             exit(EXIT_SUCCESS);
-            
+
         case '?':
             exit(EXIT_FAILURE);
 
@@ -417,38 +343,37 @@ int main(int argc, char *argv[])
         }
     }
 
-    /* Spawn GUI if configured */
-    if (gui_flag && start_gui()) {
-        exit(EXIT_FAILURE);
-    }
-
     if (!verbose && !daemon_flag) {
         hello(program_name);
     }
-    
+
     /* Determine the end-user applications to run */
     Application_list applications = parse_application_list(optind, argc, argv);
-    json_object* platform_configuration;
+    xercesc::DOMNode* platform_configuration = 0;
         
     try {
         /* Parse the platform configuration file */
+        string platform_configuration_file_error;
         
         BOOST_FOREACH(string s, conf_dirs) {
             boost::filesystem::path confpath(s);
             if (!boost::filesystem::exists(confpath)) { continue; }
-            
-            platform_configuration = json::load_document(s);
-            
-            /* Try only the first found JSON configuration file, ... */
-            if (platform_configuration->type == json_object::JSONT_NULL) {
+            platform_configuration =
+                xml::load_document(platform_configuration_schema, s,
+                                   platform_configuration_file_error);
+
+            /* Try only the first found XML configuration file, ... */
+            if (!platform_configuration) {
                 throw runtime_error
-                    ("Unable to parse the platform configuration file '" + s);
+                    ("Unable to parse the platform configuration file '" +
+                     s + "': " + platform_configuration_file_error);
             }
 
             break;
         }
 
-        /* ... and give up, if it didn't load/pass the json validation. */
+        /* ... and give up, if it didn't load/pass the schema
+           validation. */
         if (!platform_configuration) {
             string err = "Unable to find a configuration file. "
                 "Checked the following locations:\n";
@@ -460,7 +385,7 @@ int main(int argc, char *argv[])
         printf("ERR: %s", e.what());
         exit(EXIT_FAILURE);
     }
-    
+
     /* Become a daemon before finishing the booting, if configured */
     if (daemon_flag && daemon()) {
         exit(EXIT_FAILURE);
@@ -483,29 +408,9 @@ int main(int argc, char *argv[])
 
     init_log();
 
-#ifndef LOG4CXX_ENABLED
-    BOOST_FOREACH (const string& s, verbosity) {
-        set_verbosity(s.c_str());
-    }
-#endif
+    lg.dbg("Starting %s (%s)", program_name, argv[0]);
 
-    lg.info("Starting %s (%s)", program_name, argv[0]);
-            
     try {
-        /* write PID file first */ 
-        if (daemon_flag) {
-            FILE *f = ::fopen(pid_file, "w");
-            if (f) {
-                fprintf(f, "%ld\n", (long)getpid());
-                fclose(f);
-                lg.info("wrote pidfile: %s \n", pid_file); 
-            } else {
-                throw runtime_error("Couldn't create pid file \"" + 
-                                    string(pid_file) + "\": " + 
-                                    string(strerror(errno)));
-            }
-        }
-
         /* Boot the container */
         nox::init();
         Kernel::init(info_file, argc, argv);
@@ -534,12 +439,11 @@ int main(int argc, char *argv[])
               boost::bind(&DSO_deployer::instantiate, kernel, lib_dirs, _1, _2),
               typeid(DSO_deployer).name(),              
               platform_configuration), INSTALLED);
-              
+
 #ifdef TWISTED_ENABLED
         /* Boot the Python deployer/runtime component, responsible for
            all Python components. */
         kernel->install("python", INSTALLED);
-        
 #endif
 
         /* Finish the booting on its own thread, so that pollables are
@@ -547,7 +451,19 @@ int main(int argc, char *argv[])
         Co_thread install(boost::bind(&finish_booting, kernel, applications, 
                                       interfaces, reliable));
 
+        /* Write out a PID file now that the basic components have
+           been booted. */
         if (daemon_flag) {
+            FILE *f = ::fopen(pid_file, "w");
+            if (f) {
+                fprintf(f, "%ld\n", (long)getpid());
+                fclose(f);
+            } else {
+                throw runtime_error("Couldn't create pid file \"" +
+                                    string(pid_file) + "\": " +
+                                    string(strerror(errno)));
+            }
+
             /* PID file will be removed just before the daemon
                exits. Register to the shutdown event to catch SIGTERM,
                SIGINT, and SIGHUP based exits. */
@@ -584,10 +500,13 @@ static void finish_booting(Kernel* kernel, const Application_list& applications,
     }
 
     /* Report the installation results. */
-    lg.dbg("Application installation report:");
+    {
+    string report = "Application installation report:\n";
     BOOST_FOREACH(Component_context* ctxt, kernel->get_all()) {
-        lg.dbg("%s:\n%s\n", ctxt->get_name().c_str(),
-               ctxt->get_status().c_str());
+        report += ctxt->get_name() + ":\n" + ctxt->get_status() + "\n";
+    }
+
+    lg.dbg("%s", report.c_str());
     }
 
     /* Check all requested applications have booted. */
@@ -602,6 +521,12 @@ static void finish_booting(Kernel* kernel, const Application_list& applications,
             nox::connect(Openflow_connection_factory::create(interface),
                          reliable);
         }
+
+#ifndef LOG4CXX_ENABLED
+        BOOST_FOREACH (const string& s, verbosity) {
+            set_verbosity(s.c_str());
+        }
+#endif
     }
     catch (const runtime_error& e) {
         lg.err("%s", e.what());
@@ -609,6 +534,4 @@ static void finish_booting(Kernel* kernel, const Application_list& applications,
     }
 
     nox::post_event(new Bootstrap_complete_event());
-    lg.info("nox bootstrap complete");
 }
-

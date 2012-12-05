@@ -19,13 +19,13 @@
 
 #include <boost/bind.hpp>
 #include <boost/foreach.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/variant/apply_visitor.hpp>
 #include <boost/variant/get.hpp>
 #include <boost/variant/static_visitor.hpp>
 
 #include "hash_set.hh"
 #include "sha1.hh"
+#include "transactional-storage-blocking.hh"
 #include "vlog.hh"
 
 using namespace std;
@@ -54,7 +54,7 @@ static Vlog_module lg("dht-storage");
     } while (0);
 
 Async_DHT_storage::Async_DHT_storage(const container::Context* c,
-                                     const json_object*)
+                                     const xercesc::DOMNode*)
     : Component(c) {
 
 }
@@ -100,29 +100,111 @@ Async_DHT_storage::create_table(const Table_name& table,
 
     /* Check for duplicate index entries */
     hash_set<Index_name> dupecheck;
-    BOOST_FOREACH(Index_list::value_type& i,indices) {
-        dupecheck.insert(i.name);
-    }
+    BOOST_FOREACH(Index_list::value_type i,indices) { dupecheck.insert(i.name);}
     if (dupecheck.size() != indices.size()) {
         post(boost::bind(cb, Result(Result::INVALID_ROW_OR_QUERY,
                                     "duplicate indices defined.")));
         return;
     }
 
-    /* Create the index rings */
-    Index_map m;
+    /* Update the persistent storage's meta data tables */
+    Put_list puts;
+    {
+        Row r;
+        r["NOX_TABLE"] = table;
+        r["NOX_TYPE"] = (int64_t)NONPERSISTENT;
+        r["NOX_VERSION"] = (int64_t)0;
+        puts.push_back(boost::bind(&Async_transactional_connection::put,
+                                   connection, "NOX_SCHEMA_META", r, _1));
+    }
 
-    BOOST_FOREACH(Index_list::value_type i, indices) {
+    BOOST_FOREACH(Column_definition_map::value_type v, columns) {
+        Column_name n = v.first;
+        Column_type_collector t;
+        boost::apply_visitor(t, v.second);
+
+        Row r;
+        r["NOX_TABLE"] = table;
+        r["NOX_COLUMN"] = n;
+        r["NOX_TYPE"] = t.type;
+        puts.push_back(boost::bind(&Async_transactional_connection::put,
+                                   connection, "NOX_SCHEMA_TABLE", r, _1));
+    }
+
+    BOOST_FOREACH(Index_list::value_type v, indices) {
+        Index i = v;
+        BOOST_FOREACH(Column_list::value_type c, i.columns) {
+            Row r;
+            r["NOX_TABLE"] = table;
+            r["NOX_INDEX"] = i.name;
+            r["NOX_COLUMN"] = c;
+            puts.push_back(boost::bind(&Async_transactional_connection::put,
+                                       connection, "NOX_SCHEMA_INDEX", r, _1));
+        }
+    }
+
+    const boost::function<void(const Result)> finish =
+        boost::bind(&Async_DHT_storage::create_table_end, this,
+                    _1, table, columns, indices, cb);
+
+    connection->begin(Async_transactional_connection::EXCLUSIVE,
+                      boost::bind(&Async_DHT_storage::create_table_step, this,
+                                  _1, GUID(), puts, finish));
+}
+
+void
+Async_DHT_storage::create_table_step(const Result& result, const GUID& guid,
+                                     const Put_list& puts_,
+                                     const boost::function<void(const Result)>&
+                                     end) {
+    lg.dbg("Storing a meta table row.");
+
+    /* Failure or nothing left. */
+    if (result.code != Result::SUCCESS || puts_.empty()) {
+        post(boost::bind(end, result));
+        return;
+    }
+
+    /* Otherwise, put() the next row. */
+    Put_list puts = puts_;
+    boost::function<void(const Put_callback)> f = puts.front();
+    puts.pop_front();
+
+    f(boost::bind(&Async_DHT_storage::create_table_step, this,
+                  _1, _2, puts, end));
+}
+
+static void rollbacked(const Result& original_result, const Result&,
+                       const Async_DHT_storage::Create_table_callback& cb) {
+    cb(original_result);
+}
+
+void
+Async_DHT_storage::create_table_end(const Result& result,
+                                    const Table_name& table,
+                                    const Column_definition_map& columns,
+                                    const Index_list& indices,
+                                    const Create_table_callback& cb) {
+    if (result.is_success()) {
+        /* Create the index rings */
+        Index_map m;
+
+        BOOST_FOREACH(Index_list::value_type i, indices) {
             Index v = i;
             m[v.name] = v;
             index_dhts[v.name] = Index_DHT_ptr(new Index_DHT(v.name, this));
+        }
+
+        /* Create the table ring */
+        content_dhts[table] = Content_DHT_ptr(new Content_DHT(table, this));
+        tables[table] = make_pair(columns, m);
+
+        //lg.dbg("COMMITing an EXCLUSIVE transaction.");
+        connection->commit(cb);
+    } else {
+        //lg.dbg("ROLLBACKing an EXCLUSIVE transaction.");
+        connection->rollback(boost::bind(&rollbacked, result, _1, cb));
     }
-
-    /* Create the table ring */
-    content_dhts[table] = Content_DHT_ptr(new Content_DHT(table, this));
-    tables[table] = make_pair(columns, m);
-
-    cb(Result());
 }
 
 void
@@ -137,20 +219,127 @@ Async_DHT_storage::drop_table(const Table_name& table,
     }
 
     lg.dbg("Dropping a table %s.", table.c_str());
-        
-    //lg.dbg("COMMITing the table drop.");
+    connection->begin(Async_transactional_connection::EXCLUSIVE,
+                      boost::bind(&Async_DHT_storage::drop_table_step_0, this,
+                                  _1, table, cb));
+}
 
-    /* Remove the main table */
-    content_dhts.erase(table);
+void
+Async_DHT_storage::drop_table_step_0(const Result& result,
+                                     const Table_name& table,
+                                     const Drop_table_callback& cb) {
+    const boost::function<void(const Result)> end =
+        boost::bind(&Async_DHT_storage::drop_table_end, this, _1, table, cb);
 
-    /* Remove the indices */
-    BOOST_FOREACH(Index_map::value_type i, tables[table].second) {
-            index_dhts.erase(i.first);
+    /* Remove the persistent storage meta table entries */
+    list<Table_name> tables_to_clean;
+    tables_to_clean.push_back("NOX_SCHEMA_META");
+    tables_to_clean.push_back("NOX_SCHEMA_TABLE");
+    tables_to_clean.push_back("NOX_SCHEMA_INDEX");
+
+    /* Failure, rollback the transaction or if nothing left, quit. */
+    if (result.code != Result::SUCCESS || tables_to_clean.empty()) {
+        post(boost::bind(end, result));
+        return;
     }
 
-    tables.erase(table);
+    Query q;
+    q["NOX_TABLE"] = table;
+    connection->get(tables_to_clean.front(), q,
+                    boost::bind(&Async_DHT_storage::drop_table_step_1, this,
+                                _1, _2, table, tables_to_clean, end));
+}
 
-    cb(Result());
+void
+Async_DHT_storage::drop_table_step_1(const Result& result,
+                                     const Async_transactional_cursor_ptr& cur,
+                                     const Table_name& table,
+                                     const list<Table_name>& tables_to_clean,
+                                     const boost::function<void(const Result)>&
+                                     end) {
+    /* Failure, rollback the transaction or if nothing left, quit. */
+    if (result.code != Result::SUCCESS || tables_to_clean.empty()) {
+        post(boost::bind(end, result));
+        return;
+    }
+
+    /* Find the next row. */
+    cur->get_next(boost::bind(&Async_DHT_storage::drop_table_step_2, this,
+                              _1, _2, cur, table, tables_to_clean, end));
+}
+
+void
+Async_DHT_storage::drop_table_step_2(const Result& result,
+                                     const Row& row,
+                                     const Async_transactional_cursor_ptr& cur,
+                                     const Table_name& table,
+                                     const list<Table_name>& tables_to_clean,
+                                     const boost::function<void(const Result)>&
+                                     end) {
+    /* If nothing found, close the cursor and move on the next meta
+       table. */
+    if (result.code == Result::NO_MORE_ROWS) {
+        list<Table_name> t = tables_to_clean;
+        t.pop_front();
+
+        cur->close(boost::bind(&Async_DHT_storage::drop_table_step_3, this,
+                               _1, table, t, end));
+        return;
+    }
+
+    /* Abort the remove()'s. */
+    if (result.code != Result::SUCCESS) {
+        post(boost::bind(end, result));
+        return;
+    }
+
+    /* Remove the row and move to the next one. */
+    connection->remove(tables_to_clean.front(), row,
+                       boost::bind(&Async_DHT_storage::drop_table_step_1, this,
+                                   _1, cur, table, tables_to_clean, end));
+}
+
+void
+Async_DHT_storage::drop_table_step_3(const Result& result,
+                                     const Table_name& table,
+                                     const list<Table_name>& t,
+                                     const boost::function
+                                     <void(const Result)>& end) {
+    if (t.empty()) {
+        post(boost::bind(end, result));
+        return;
+    }
+
+    Query q;
+    q["NOX_TABLE"] = table;
+    connection->get(t.front(), q,
+                    boost::bind(&Async_DHT_storage::drop_table_step_1, this,
+                                _1, _2, table, t, end));
+}
+
+void
+Async_DHT_storage::drop_table_end(const Result& result,
+                                  const Table_name& table,
+                                  const Drop_table_callback& cb) {
+    if (result.code == Result::SUCCESS) {
+        //lg.dbg("COMMITing the table drop.");
+
+        /* Remove the main table */
+        content_dhts.erase(table);
+
+        /* Remove the indices */
+        BOOST_FOREACH(Index_map::value_type i, tables[table].second) {
+            index_dhts.erase(i.first);
+        }
+
+        tables.erase(table);
+
+        /* Commit is not guaranteed to fail. */
+        connection->commit(cb);
+    } else {
+        //lg.dbg("ROLLBACKing the table drop: %s", result.message.c_str());
+        connection->rollback(boost::bind(&rollbacked, result, _1, cb));
+    }
 }
 
 class type_checker
@@ -372,11 +561,14 @@ Async_DHT_storage::remove(const Context& ctxt,
 void
 Async_DHT_storage::debug(const Table_name& table) {
     lg.dbg("statistics for %s:", table.c_str());
-    lg.dbg("main table, entries = %zu", content_dhts[table]->size());
+    lg.dbg("main table, entries = %d", content_dhts[table]->size());
     BOOST_FOREACH(const Index_map::value_type& i, tables[table].second) {
         Index_name name = i.first;
-        lg.dbg("index table, entries = %zu", index_dhts[name]->size());
+        lg.dbg("index table, entries = %d", index_dhts[name]->size());
     }
+
+
+
 }
 
 #define RETURN_TRIGGER_ERROR(CODE, MESSAGE)                             \
@@ -460,9 +652,157 @@ Async_DHT_storage::configure(const Configuration*) {
 
 void
 Async_DHT_storage::install() {
+    Async_transactional_storage* storage;
+    resolve(storage);
+
+    if (!storage) { throw runtime_error("transactional storage not found"); }
+
+    Sync_transactional_storage s(storage);
+    Sync_transactional_storage::Get_connection_result res = s.get_connection();
+    Result result = res.get<0>();
+    if (!result.is_success()) {
+        throw runtime_error("unable to get a connection");
+    }
+    Sync_transactional_connection_ptr c = res.get<1>();
+    connection = c->connection;
+
+    lg.dbg("Reading the meta data tables.");
+
+    /* First identify the tables to read the meta data for */
+    Sync_transactional_connection::Get_result g =
+        c->get("NOX_SCHEMA_META", Query());
+    result = g.get<0>();
+    Sync_transactional_cursor_ptr cursor = g.get<1>();
+
+    if (!result.is_success()) {
+        throw runtime_error("unable to read the meta data");
+    }
+
+    while (true) {
+        Sync_transactional_cursor::Get_next_result r = cursor->get_next();
+        Result result = r.get<0>();
+        Row row = r.get<1>();
+
+        if (result == Result::NO_MORE_ROWS) {
+            cursor->close();
+            break;
+        }
+
+        if (!result.is_success()) {
+            cursor->close();
+            throw runtime_error("unable to read the meta data");
+        }
+
+        if (boost::get<int64_t>(row["NOX_TYPE"]) == NONPERSISTENT) {
+            tables[boost::get<string>(row["NOX_TABLE"])];
+        }
+    }
+
+    /* Then read the column data */
+    BOOST_FOREACH(Table_definition_map::value_type v, tables) {
+        const Table_name& table = v.first;
+        Query q;
+        q["NOX_TABLE"] = table;
+
+        Sync_transactional_connection::Get_result g =
+            c->get("NOX_SCHEMA_TABLE", q);
+        Result result = g.get<0>();
+        Sync_transactional_cursor_ptr cursor = g.get<1>();
+
+        if (!result.is_success()) {
+            throw runtime_error("unable to read the meta data: " +
+                                result.message);
+        }
+
+        while(true) {
+            Sync_transactional_cursor::Get_next_result g = cursor->get_next();
+            Result r = g.get<0>();
+            Row row = g.get<1>();
+
+            if (r.code == Result::NO_MORE_ROWS) {
+                cursor->close();
+                break;
+            }
+
+            if (!r.is_success()) {
+                cursor->close();
+                throw runtime_error("unable to read the meta data: " +
+                                    r.message);
+            }
+
+            Column_name& col_name = boost::get<string>(row["NOX_COLUMN"]);
+            switch (boost::get<int64_t>(row["NOX_TYPE"])) {
+            case COLUMN_INT:
+                tables[table].first[col_name] = (int64_t)0;
+                break;
+            case COLUMN_TEXT:
+                tables[table].first[col_name] = string("");
+                break;
+            case COLUMN_DOUBLE:
+                tables[table].first[col_name] = (double)0;
+                break;
+            case COLUMN_GUID:
+                tables[table].first[col_name] = GUID();
+                break;
+            default:
+                throw runtime_error("corrupted meta data");
+            }
+        }
+    }
+
+    /* Then read the index data */
+    BOOST_FOREACH(Table_definition_map::value_type v, tables) {
+        const Table_name& table = v.first;
+        Query q;
+        q["NOX_TABLE"] = table;
+
+        Sync_transactional_connection::Get_result g =
+            c->get("NOX_SCHEMA_INDEX", q);
+        Result result = g.get<0>();
+        Sync_transactional_cursor_ptr cursor = g.get<1>();
+
+        if (!result.is_success()) {
+            throw runtime_error("unable to read the meta data");
+        }
+
+        while(true) {
+            Sync_transactional_cursor::Get_next_result g = cursor->get_next();
+            Result r = g.get<0>();
+            Row row = g.get<1>();
+
+            if (r.code == Result::NO_MORE_ROWS) {
+                cursor->close();
+                break;
+            }
+            if (r.code != Result::SUCCESS) {
+                cursor->close();
+                throw runtime_error("unable to read the meta data");
+            }
+
+            const Index_name index_name =
+                boost::get<string>(row["NOX_INDEX"]);
+            tables[table].second[index_name].name = index_name;
+            tables[table].second[index_name].columns.
+                push_back(boost::get<string>(row["NOX_COLUMN"]));
+        }
+    }
+
+    /* Initialize the table structures */
+    BOOST_FOREACH(Table_definition_map::value_type v, tables) {
+        assert(content_dhts.find(v.first) == content_dhts.end());
+        content_dhts[v.first] = Content_DHT_ptr(new Content_DHT(v.first, this));
+
+        BOOST_FOREACH(Index_map::value_type i, v.second.second) {
+            if (index_dhts.find(i.first) != index_dhts.end()) {
+                throw runtime_error("corrupted database");
+            }
+
+            index_dhts[i.first] = Index_DHT_ptr(new Index_DHT(i.first, this));
+        }
+    }
 }
 
-vigil::applications::storage::Index
+Index
 Async_DHT_storage::identify_index(const Table_name& table,
                                   const Query& q) const {
     Table_definition_map::const_iterator t = tables.find(table);

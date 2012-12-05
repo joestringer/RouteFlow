@@ -24,13 +24,10 @@ import nox.lib.core
 import oxidereactor
 import twisted
 import logging, types
-from   twisted.internet import base, error, interfaces, posixbase, task
-from   twisted.internet.interfaces import IResolverSimple
-from   twisted.internet.process import reapAllProcesses
-
+from   twisted.internet import base, error, interfaces, posixbase
 from   twisted.python.runtime import seconds
+
 from   twisted.python import log, reflect
-from   zope.interface import implements
 
 def doRead(reader, reactor):
     why = None
@@ -95,33 +92,6 @@ class DelayedCallWrapper(base.DelayedCall):
                 e += "\n"
                 log.msg(e)
 
-class Resolver:
-    implements (IResolverSimple)
-
-    def __init__(self, oreactor):
-        self.oreactor = oreactor
-
-    def getHostByName(self, name, timeout = (1, 3, 11, 45)):
-        from twisted.internet.defer import Deferred
-
-        d = Deferred()
-
-        self.oreactor.resolve(name, d.callback)
-
-        def query_complete(address, name):
-            if address is None or address == "":
-                from twisted.internet import error
-
-                msg = "address %r not found" % (name,)
-                err = error.DNSLookupError(msg)
-
-                from twisted.internet import defer
-                return defer.fail(err)
-            else:
-                return address
-
-        return d.addCallback(query_complete, name)
-
 class pyoxidereactor (posixbase.PosixReactorBase):
 
     def __init__(self, ctxt):
@@ -129,14 +99,7 @@ class pyoxidereactor (posixbase.PosixReactorBase):
         self.oreactor = oxidereactor.oxidereactor(ctxt, "oxidereactor")
         posixbase.PosixReactorBase.__init__(self)
         installReactor(self)
-        self.installResolver(Resolver(self.oreactor))
         signal.signal(signal.SIGCHLD, self._handleSigchld)
-
-        # Twisted uses os.waitpid(pid, WNOHANG) but doesn't try again
-        # if the call returns nothing (since not being able to block).
-        # Poll once a second on behalf of Twisted core to detect child
-        # processes dying properly.
-        task.LoopingCall(reapAllProcesses).start(1)
 
     # The removeReader, removeWriter, addReader, and addWriter
     # functions must be implemented, because they are used extensively

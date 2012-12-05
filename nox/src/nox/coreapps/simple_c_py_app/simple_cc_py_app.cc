@@ -17,6 +17,8 @@
  */
 #include "simple_cc_py_app.hh"
 
+#include <xercesc/dom/DOM.hpp>
+
 #include "vlog.hh"
 
 

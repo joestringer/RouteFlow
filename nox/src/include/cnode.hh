@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 #include <assert.h>
-#include <stdio.h>
+#include <cstdio>
 
 #include "cnode-result.hh"
 #include "rule.hh"

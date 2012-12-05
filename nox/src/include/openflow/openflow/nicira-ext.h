@@ -1,14 +1,12 @@
 /*
  * Distributed under the terms of the GNU GPL version 2.
- * Copyright (c) 2008, 2009 Nicira Networks
+ * Copyright (c) 2008 Nicira Networks
  */
 
 #ifndef OPENFLOW_NICIRA_EXT_H
 #define OPENFLOW_NICIRA_EXT_H 1
 
 #include "openflow/openflow.h"
-
-#define NICIRA_OUI_STR "002320"
 
 /* The following vendor extensions, proposed by Nicira Networks, are not yet
  * ready for standardization (and may never be), so they are not included in
@@ -40,16 +38,7 @@ enum nicira_type {
 
     /* Remote command execution reply, sent when the command's execution
      * completes.  The reply body is struct nx_command_reply. */
-    NXT_COMMAND_REPLY,
-
-    /* No longer used. */
-    NXT_FLOW_END_CONFIG__OBSOLETE,
-
-    /* No longer used. */
-    NXT_FLOW_END__OBSOLETE,
-
-    /* Management protocol.  See "openflow-mgmt.h". */
-    NXT_MGMT,
+    NXT_COMMAND_REPLY
 };
 
 struct nicira_header {
@@ -85,11 +74,12 @@ struct nx_snat_config {
     uint16_t udp_start;
     uint16_t udp_end;
 
-    /* MAC address to use for ARP requests for a SNAT IP address that 
-     * comes in on a different interface than 'port'.  A value of all 
-     * zeros silently drops those ARP requests.  Requests that arrive 
-     * on 'port' get a response with the mac address of the datapath 
-     * device. */
+   /* MAC address to use for ARP requests for a SNAT IP address
+      that comes in on a different interface than 'port'.  A value of
+      all zeros silently drops those ARP requests.  Requests that arrive on
+      'port' get a response with the mac address of the datapath
+    */
+
     uint8_t mac_addr[OFP_ETH_ALEN];
     uint8_t pad2[2];
 };
@@ -110,8 +100,7 @@ OFP_ASSERT(sizeof(struct nx_act_config) == 20);
 
 
 enum nx_action_subtype {
-    NXAST_SNAT,                     /* Source-NAT */
-    NXAST_RESUBMIT                  /* Throw against flow table again. */
+    NXAST_SNAT                      /* Source-NAT */
 };
 
 /* Action structure for NXAST_SNAT. */
@@ -125,17 +114,6 @@ struct nx_action_snat {
     uint8_t pad[4];
 };
 OFP_ASSERT(sizeof(struct nx_action_snat) == 16);
-
-/* Action structure for NXAST_RESUBMIT. */
-struct nx_action_resubmit {
-    uint16_t type;                  /* OFPAT_VENDOR. */
-    uint16_t len;                   /* Length is 8. */
-    uint32_t vendor;                /* NX_VENDOR_ID. */
-    uint16_t subtype;               /* NXAST_RESUBMIT. */
-    uint16_t in_port;               /* New in_port for checking flow table. */
-    uint8_t pad[4];
-};
-OFP_ASSERT(sizeof(struct nx_action_resubmit) == 16);
 
 /* Header for Nicira-defined actions. */
 struct nx_action_header {

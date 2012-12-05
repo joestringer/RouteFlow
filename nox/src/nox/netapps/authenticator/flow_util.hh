@@ -48,7 +48,7 @@ class Flow_expr {
 
 public:
     // Constants
-    static const uint32_t NUM_FIELDS = 21;     // num fields that can be split
+    static const uint32_t NUM_FIELDS = 24;     // num fields that can be split
                                                // on by Cnode
     static const uint32_t LEAF_THRESHOLD = 1;  // min num rules that should be
                                                // saved by a split for it to be
@@ -63,13 +63,15 @@ public:
         LOCDST,
         HSRC,
         HDST,
-        HNETSRC,
-        HNETDST,
         USRC,
         UDST,
         CONN_ROLE,
-        GROUPSRC,
-        GROUPDST,
+        LGROUPSRC,
+        LGROUPDST,
+        HGROUPSRC,
+        HGROUPDST,
+        UGROUPSRC,
+        UGROUPDST,
         DLVLAN,
         DLVLANPCP,
         DLSRC,
@@ -78,9 +80,11 @@ public:
         NWSRC,
         NWDST,
         NWPROTO,
+        NWTOS,
         TPSRC,
         TPDST,
-        APPLY_SIDE,
+        ADDRGROUPSRC,
+        ADDRGROUPDST,
         SUBNETSRC,  // start of un-splittable preds
         SUBNETDST,  // mask should be upper 32 of arg, ip lower
         FUNC,
@@ -92,28 +96,19 @@ public:
         RESPONSE,
     };
 
-    enum Apply_side_t {
-        ALWAYS_APPLY,
-        APPLY_AT_SOURCE,
-        APPLY_AT_DESTINATION
-    };
-
     struct Pred {
         Pred_t type;
         uint64_t val;
     };
 
-    Flow_expr(uint32_t n_preds) : m_fn(NULL), m_preds(n_preds),
-                                  apply_side(ALWAYS_APPLY) { }
+    Flow_expr(uint32_t n_preds) : m_fn(NULL), m_preds(n_preds) { }
     ~Flow_expr() { }
 
     bool set_pred(uint32_t i, Pred_t type, uint64_t value);
-    bool set_pred(uint32_t i, Pred_t type, int64_t value);
     bool set_fn(PyObject *fn);
 
     PyObject *m_fn;
     std::vector<Pred> m_preds;
-    Apply_side_t apply_side;
     uint32_t global_id;
 
 private:
@@ -141,11 +136,6 @@ public:
         MAX_ACTIONS,
     };
 
-    struct C_func_t {
-        std::string name;
-        Flow_fn_map::Flow_fn fn;
-    };
-
     static const uint32_t ARG_ACTION = WAYPOINT;  // min Action_t value of
                                                   // actions with arguments
 
@@ -159,13 +149,13 @@ public:
     bool set_arg(uint32_t i, uint64_t arg);       // set vector index arg
     bool set_arg(PyObject *);                     // set PyObject arg
     bool set_arg(uint64_t);                       // set single int arg
-    bool set_arg(const C_func_t&);                // set function arg
+    bool set_arg(const Flow_fn_map::Flow_fn&);    // set function arg
 
     Action_t get_type() { return type; }
 
     typedef boost::variant<uint64_t,
                            PyObject*,
-                           C_func_t,
+                           Flow_fn_map::Flow_fn,
                            std::vector<uint64_t> > Arg_union;
 
     Action_t type;
@@ -181,7 +171,7 @@ class Flow_util
 {
 
 public:
-    Flow_util(const container::Context*, const json_object*);
+    Flow_util(const container::Context*, const xercesc::DOMNode*);
 
     static void getInstance(const container::Context*, Flow_util*&);
 

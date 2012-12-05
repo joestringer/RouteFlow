@@ -61,8 +61,6 @@ public:
     Ssl_session *get_session();
 
     std::string get_peer_cert_fingerprint(); 
-    uint32_t get_local_ip(); 
-    uint32_t get_remote_ip(); 
 
 private:
     boost::shared_ptr<Ssl_config> config;

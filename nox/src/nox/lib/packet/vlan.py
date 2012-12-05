@@ -81,12 +81,12 @@ class vlan(packet_base):
             print '(vlan parse) warning VLAN packet data too short to parse header: data len %u' % dlen
             return 
 
-        (pcpid, self.eth_type) = struct.unpack("!HH", \
+        (id, self.eth_type) = struct.unpack("!HH", \
                 self.arr[:vlan.MIN_LEN])
 
-        self.pcp = pcpid >> 13
-        self.c   = pcpid  & 0x1000
-        self.id  = pcpid  & 0x0fff
+        self.pcp = id >> 13
+        self.c   = id  & 0x1000
+        self.id  = id  & 0x0fff
 
         self.parsed = True
 
@@ -94,8 +94,8 @@ class vlan(packet_base):
             self.next = ethernet.type_parsers[self.eth_type](arr=self.arr[vlan.MIN_LEN:],prev=self)
 
     def hdr(self):
-        pcpid  = self.pcp << 13
-        pcpid |= self.c   << 12
-        pcpid |= self.id
-        buf = struct.pack("!HH", pcpid, self.eth_type)
+        id  = self.pcp << 13
+        id |= self.c   << 12
+        id |= self.id
+        buf = struct.pack("!HH", id, self.eth_type)
         return buf

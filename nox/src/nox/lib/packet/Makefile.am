@@ -1,7 +1,5 @@
 include ../../../Make.vars 
 
-SUBDIRS = t
-
 EXTRA_DIST =\
 	__init__.py\
 	oui.txt\

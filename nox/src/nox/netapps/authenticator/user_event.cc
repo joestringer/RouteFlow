@@ -49,7 +49,7 @@ User_event::get_reason_string(User_event::Reason reason)
     return "";
 }
 
-User_auth_event::User_auth_event(int64_t username_, int64_t hostname_,
+User_auth_event::User_auth_event(uint32_t username_, uint32_t hostname_,
                                  uint32_t idle_timeout_, uint32_t hard_timeout_,
                                  User_event::Reason reason_)
     : Event(static_get_name()), action(AUTHENTICATE), username(username_),
@@ -57,15 +57,15 @@ User_auth_event::User_auth_event(int64_t username_, int64_t hostname_,
       hard_timeout(hard_timeout_), reason(reason_), to_post(NULL)
 {}
 
-User_auth_event::User_auth_event(int64_t username_, int64_t hostname_,
+User_auth_event::User_auth_event(uint32_t username_, uint32_t hostname_,
                                  User_event::Reason reason_)
     : Event(static_get_name()), action(DEAUTHENTICATE), username(username_),
       hostname(hostname_), idle_timeout(0), hard_timeout(0), reason(reason_),
       to_post(NULL)
 {}
 
-User_join_event::User_join_event(Action action_, int64_t username_,
-                                 int64_t hostname_, User_event::Reason reason_)
+User_join_event::User_join_event(Action action_, uint32_t username_,
+                                 uint32_t hostname_, User_event::Reason reason_)
     : Event(static_get_name()), action(action_), username(username_),
       hostname(hostname_), reason(reason_)
 {}

@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -18,7 +18,6 @@
 #include <config.h>
 #include <algorithm>
 #include "openflow.hh"
-#include "openflow/openflow-mgmt.h"
 #include "openflow/nicira-ext.h"
 #include <boost/bind.hpp>
 #include <boost/foreach.hpp>
@@ -42,23 +41,20 @@
 #include "ssl-config.hh"
 #include "timeval.hh"
 #include "vlog.hh"
-#include "openflow-pack.hh"
 
 namespace vigil {
 
 static Vlog_module log("openflow");
 
 const int Reliable_openflow_connection::backoff_limit = 60;
-const int Openflow_connection::probe_interval = 15;
+const int Openflow_connection::probe_interval = 60;
 
 Openflow_connection::Openflow_connection()
-    : ext_data_xid(UINT32_MAX),
-      datapath_id(),
+    : datapath_id(),
       state(S_CONNECTING),
       min_version(OFP_VERSION),
       fsm(boost::bind(&Openflow_connection::run, this))
 {
-    ext_data_buffer.reset(new Array_buffer(0));
 }
 
 void
@@ -81,7 +77,7 @@ Openflow_connection::s_send_hello()
     hello.version = OFP_VERSION;
     hello.type = OFPT_HELLO;
     hello.length = htons(sizeof hello);
-    hello.xid = openflow_pack::get_xid();
+    hello.xid = 0;
 
     int retval = call_send_openflow(&hello);
     if (!retval) {
@@ -119,10 +115,7 @@ Openflow_connection::s_recv_hello()
                          "peer no later than version 0x%02"PRIx8")",
                          to_string().c_str(), version, min_version,
                          OFP_VERSION, oh->version);
-		if (oh->version > OFP_EXPERIMENTAL_VERSION)
-		  state = S_SEND_ERROR;
-		else
-		  state = S_CONNECTED;
+                state = S_CONNECTED;
                 timeout = do_gettimeofday() + make_timeval(probe_interval, 0);
                 fsm.wake();
             }
@@ -509,80 +502,8 @@ int Openflow_connection::send_features_request()
     ofr.type = OFPT_FEATURES_REQUEST;
     ofr.version = OFP_VERSION;
     ofr.length = htons(sizeof ofr);
-    ofr.xid = openflow_pack::get_xid();
+    ofr.xid = 0;         /* xxx Do we want to set this? */
     return send_openflow(&ofr, false);
-} 
-
-/* xxx Should these ofmp messages be a different class? */
-/* xxx Shouldn't these be setting xid? */
-int Openflow_connection::send_ofmp_capability_request()
-{
-    struct ofmp_capability_request ocr;
-
-    memset(&ocr, '\0', sizeof(ocr));
-
-    /* OpenFlow header */
-    ocr.header.header.header.type = OFPT_VENDOR;
-    ocr.header.header.header.version = OFP_VERSION;
-    ocr.header.header.header.length = htons(sizeof ocr);
-    ocr.header.header.header.xid = openflow_pack::get_xid();
-
-    /* Nicira header */
-    ocr.header.header.vendor = htonl(NX_VENDOR_ID);
-    ocr.header.header.subtype = htonl(NXT_MGMT);
-
-    /* OFMP header */
-    ocr.header.type = htons(OFMPT_CAPABILITY_REQUEST);
-
-    ocr.format = htonl(OFMPCAF_SIMPLE);
-
-    return send_openflow(&ocr.header.header.header, false);
-} 
-
-int Openflow_connection::send_ofmp_resources_request()
-{
-    struct ofmp_resources_request orr;
-
-    memset(&orr, '\0', sizeof(orr));
-
-    /* OpenFlow header */
-    orr.header.header.header.type = OFPT_VENDOR;
-    orr.header.header.header.version = OFP_VERSION;
-    orr.header.header.header.length = htons(sizeof orr);
-    orr.header.header.header.xid = openflow_pack::get_xid();
-
-    /* Nicira header */
-    orr.header.header.vendor = htonl(NX_VENDOR_ID);
-    orr.header.header.subtype = htonl(NXT_MGMT);
-
-    /* OFMP header */
-    orr.header.type = htons(OFMPT_RESOURCES_REQUEST);
-
-    return send_openflow(&orr.header.header.header, false);
-} 
-
-int Openflow_connection::send_ofmp_config_request()
-{
-    struct ofmp_config_request ocr;
-
-    memset(&ocr, '\0', sizeof(ocr));
-
-    /* OpenFlow header */
-    ocr.header.header.header.type = OFPT_VENDOR;
-    ocr.header.header.header.version = OFP_VERSION;
-    ocr.header.header.header.length = htons(sizeof ocr);
-    ocr.header.header.header.xid = openflow_pack::get_xid();
-
-    /* Nicira header */
-    ocr.header.header.vendor = htonl(NX_VENDOR_ID);
-    ocr.header.header.subtype = htonl(NXT_MGMT);
-
-    /* OFMP header */
-    ocr.header.type = htons(OFMPT_CONFIG_REQUEST);
-
-    ocr.format = htonl(OFMPCOF_SIMPLE);
-
-    return send_openflow(&ocr.header.header.header, false);
 } 
 
 /* Sends a ofp_switch_config message.
@@ -596,8 +517,8 @@ int Openflow_connection::send_switch_config() {
     osc.header.type = OFPT_SET_CONFIG;
     osc.header.version = OFP_VERSION;
     osc.header.length = htons(sizeof osc);
-    osc.header.xid = openflow_pack::get_xid();
-    osc.flags =  0;
+    osc.header.xid = 0;
+    osc.flags = 0;
     osc.miss_send_len = htons(OFP_DEFAULT_MISS_SEND_LEN);
 
     return send_openflow(&osc.header, false);
@@ -615,7 +536,7 @@ int Openflow_connection::send_stats_request(ofp_stats_types type)
     osr.header.type    = OFPT_STATS_REQUEST;
     osr.header.version = OFP_VERSION;
     osr.header.length  = htons(sizeof osr);
-    osr.header.xid     = openflow_pack::get_xid();
+    osr.header.xid     = 0;
     osr.type           = type;
     osr.flags          = htons(0); /* CURRENTLY NONE DEFINED */ 
 
@@ -632,7 +553,7 @@ int Openflow_connection::send_echo_request()
     oer.type = OFPT_ECHO_REQUEST;
     oer.version = OFP_VERSION;
     oer.length = htons(sizeof oer);
-    oer.xid = openflow_pack::get_xid();
+    oer.xid = 0;
     return send_openflow(&oer, false);
 }
 
@@ -651,22 +572,6 @@ int Openflow_connection::send_echo_reply(const struct ofp_header *rq)
     reply->type = OFPT_ECHO_REPLY;
     return send_openflow(reply, false);
 }
-
-
-/* Sends an OFPT_BARRIER_REQUEST message.
- *
- * Does not block: returns EAGAIN if the message cannot be immediately accepted
- * for transmission. */
-int Openflow_connection::send_barrier_request()
-{
-    ofp_header obr;
-    obr.type = OFPT_BARRIER_REQUEST;
-    obr.version = OFP_VERSION;
-    obr.length = htons(sizeof obr);
-    obr.xid = openflow_pack::get_xid();
-    return send_openflow(&obr, false);
-}
-
 
 /* Sends a delete SNAT configuration message.
  *
@@ -689,7 +594,7 @@ int Openflow_connection::send_add_snat(uint16_t port,
     nac.header.header.type    = OFPT_VENDOR;
     nac.header.header.version = OFP_VERSION;
     nac.header.header.length  = htons(nac_size);
-    nac.header.header.xid     = openflow_pack::get_xid();
+    nac.header.header.xid     = 0;       /* xxx Do we want to set this? */
 
     nac.header.vendor         = htonl(NX_VENDOR_ID);
     nac.header.subtype        = htonl(NXT_ACT_SET_CONFIG);
@@ -731,7 +636,7 @@ int Openflow_connection::send_del_snat(uint16_t port)
     nac.header.header.type    = OFPT_VENDOR;
     nac.header.header.version = OFP_VERSION;
     nac.header.header.length  = htons(nac_size);
-    nac.header.header.xid     = openflow_pack::get_xid();
+    nac.header.header.xid     = 0;       /* xxx Do we want to set this? */
 
     nac.header.vendor         = htonl(NX_VENDOR_ID);
     nac.header.subtype        = htonl(NXT_ACT_SET_CONFIG);
@@ -755,7 +660,7 @@ Openflow_connection::send_remote_command(const std::string& command,
     nicira_header* nh = &b.at<nicira_header>(0);
     nh->header.type = OFPT_VENDOR;
     nh->header.version = OFP_VERSION;
-    nh->header.xid = openflow_pack::get_xid();
+    nh->header.xid = 0;
     nh->vendor = htonl(NX_VENDOR_ID);
     nh->subtype = htonl(NXT_COMMAND_REQUEST);
 
@@ -775,8 +680,7 @@ Openflow_connection::send_remote_command(const std::string& command,
 /* Constructs a Openflow connection that takes over ownership of 'stream'. */
 Openflow_stream_connection::Openflow_stream_connection(
     std::auto_ptr<Async_stream> stream_,Connection_type t)
-    : tx_fsm(boost::bind(&Openflow_stream_connection::tx_run, this)),
-      stream(stream_), rx_bytes(0), conn_type(t)
+: stream(stream_), rx_bytes(0), conn_type(t)
 {
 }
 
@@ -797,15 +701,6 @@ void
 Openflow_stream_connection::do_connect_wait()
 {
     stream->connect_wait();
-}
-
-void
-Openflow_stream_connection::tx_run()
-{
-    if (tx_buf.get() && send_tx_buf() == EAGAIN) {
-        do_send_openflow_wait();
-    }
-    co_fsm_block();
 }
 
 int Openflow_stream_connection::send_tx_buf()
@@ -842,12 +737,8 @@ int Openflow_stream_connection::do_send_openflow(const ofp_header* oh)
     tx_buf.reset(new Array_buffer(ntohs(oh->length)));
     memcpy(tx_buf->data(), oh, ntohs(oh->length));
     int error = send_tx_buf();
-    if (error == EAGAIN) {
-        tx_fsm.wake();
-        return 0;
-    } else {
-        return error;
-    }
+    /* FIXME: start FSM. */
+    return error == EAGAIN ? 0 : error;
 }
 
 int Openflow_stream_connection::do_read(void *p, size_t need_bytes)
@@ -938,28 +829,6 @@ std::string Openflow_stream_connection::get_ssl_fingerprint() {
       return sock->get_peer_cert_fingerprint().c_str(); 
   } 
   return "non-SSL connection, no fingerprint"; 
-} 
-
-uint32_t Openflow_stream_connection::get_local_ip() { 
-  if(get_conn_type() == TYPE_SSL) { 
-      Ssl_socket* sock = assert_cast< Ssl_socket* >( &(*stream));
-      return sock->get_local_ip(); 
-  } else if(get_conn_type() == TYPE_TCP) { 
-      Tcp_socket* sock = assert_cast< Tcp_socket* >( &(*stream));
-      return sock->get_local_ip(); 
-  } 
-  return 0; // 0.0.0.0 indiates failure 
-} 
-
-uint32_t Openflow_stream_connection::get_remote_ip() { 
-  if(get_conn_type() == TYPE_SSL) { 
-      Ssl_socket* sock = assert_cast< Ssl_socket* >( &(*stream));
-      return sock->get_remote_ip(); 
-  } else if(get_conn_type() == TYPE_TCP) { 
-      Tcp_socket* sock = assert_cast< Tcp_socket* >( &(*stream));
-      return sock->get_remote_ip(); 
-  } 
-  return 0; // 0.0.0.0 indiates failure 
 } 
 
 
@@ -1125,7 +994,7 @@ Openflow_connection_factory* Openflow_connection_factory::create(
     std::vector<std::string> tokens(tokenizer.begin(), tokenizer.end());
 
     if (tokens.size() < 2) {
-        log.err("openflow connection name must contain `:'");
+        log.emer("openflow connection name must contain `:'");
         exit(EXIT_FAILURE);
     }
 
@@ -1141,7 +1010,7 @@ Openflow_connection_factory* Openflow_connection_factory::create(
         return new Passive_tcp_openflow_connection_factory(htons(port));
     } else if (tokens[0] == "ssl") {
         if (tokens.size() != 6) {
-            log.err("ssl connection name not in the form ssl:HOST:[PORT]:KEY:CERT:CAFILE");
+            log.emer("ssl connection name not in the form ssl:HOST:[PORT]:KEY:CERT:CAFILE");
             exit(EXIT_FAILURE);
         }
         uint16_t port = atoi(tokens[2].c_str());
@@ -1153,7 +1022,7 @@ Openflow_connection_factory* Openflow_connection_factory::create(
             tokens[4].c_str(), tokens[5].c_str());
     } else if (tokens[0] == "pssl") {
         if (tokens.size() != 5) {
-            log.err("pssl connection name not in the form pssl:[PORT]:KEY:CERT:CAFILE");
+            log.emer("pssl connection name not in the form pssl:[PORT]:KEY:CERT:CAFILE");
             exit(EXIT_FAILURE);
         }
         uint16_t port = atoi(tokens[1].c_str());
@@ -1165,7 +1034,7 @@ Openflow_connection_factory* Openflow_connection_factory::create(
             tokens[4].c_str());
     } else if (tokens[0] == "pcap") {
 #ifndef HAVE_PCAP        
-            log.err("pcap support not built in.  Ensure you have pcap installed and rebuild");
+            log.emer("pcap support not built in.  Ensure you have pcap installed and rebuild");
             exit(EXIT_FAILURE);
 #else            
         if (tokens.size() == 2) {
@@ -1173,13 +1042,13 @@ Openflow_connection_factory* Openflow_connection_factory::create(
         }else if (tokens.size() == 3){
             return new Pcapreader_factory(tokens[1], tokens[2]);
         }else{
-            log.err("Invalid format for pcap reader\"%s\"", s.c_str());
+            log.emer("Invalid format for pcap reader\"%s\"", s.c_str());
             exit(EXIT_FAILURE);
         }
 #endif            
     } else if(tokens[0] == "pcapt") {
 #ifndef HAVE_PCAP        
-            log.err("pcap support not built in.  Ensure you have pcap installed and rebuild");
+            log.emer("pcap support not built in.  Ensure you have pcap installed and rebuild");
             exit(EXIT_FAILURE);
 #else            
         if (tokens.size() == 2) {
@@ -1187,7 +1056,7 @@ Openflow_connection_factory* Openflow_connection_factory::create(
         }else if (tokens.size() == 3){
             return new Pcapreader_factory(tokens[1], tokens[2],true);
         }else{
-            log.err("Invalid format for pcapt reader\"%s\"", s.c_str());
+            log.emer("Invalid format for pcapt reader\"%s\"", s.c_str());
             exit(EXIT_FAILURE);
         }
 #endif            
@@ -1196,7 +1065,7 @@ Openflow_connection_factory* Openflow_connection_factory::create(
         if (tokens.size() == 2) {
             return new Packetgen_factory(atoi(tokens[1].c_str()));
         } else{
-            log.err("Invalid format for packet generator \"%s\"", s.c_str());
+            log.emer("Invalid format for packet generator \"%s\"", s.c_str());
             exit(EXIT_FAILURE);
         }
 #ifdef HAVE_NETLINK
@@ -1204,7 +1073,7 @@ Openflow_connection_factory* Openflow_connection_factory::create(
         return new Datapath_factory(atoi(tokens[1].c_str()));
 #endif
     } else {
-        log.err("unsupported openflow connection type \"%s\"",
+        log.emer("unsupported openflow connection type \"%s\"",
               tokens[0].c_str());
         exit(EXIT_FAILURE);
     }
@@ -1257,6 +1126,8 @@ Passive_tcp_openflow_connection_factory
         throw errno_exception(error, "bind");
     }
 
+    // Disabling Nagle's Algrorithm (Masa)
+    socket.set_nodelay();
 
     error = socket.listen(SOMAXCONN);
     if (error) {
@@ -1268,12 +1139,10 @@ Passive_tcp_openflow_connection_factory
 Openflow_connection*
 Passive_tcp_openflow_connection_factory::connect(int& error)
 {
-    std::auto_ptr<Tcp_socket> tsoc = socket.accept(error, false);
+    std::auto_ptr<Async_stream> new_socket(socket.accept(error, false));
     Openflow_connection* c = NULL;
     if (!error) {
-        tsoc->set_nodelay(true);
         log.dbg("Passive tcp interface received connection ");
-        std::auto_ptr<Async_stream> new_socket(tsoc);
         c = new Openflow_stream_connection(new_socket, 
                 Openflow_stream_connection::TYPE_TCP);
     }

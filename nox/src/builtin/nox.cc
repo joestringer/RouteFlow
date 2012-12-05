@@ -26,25 +26,16 @@
 #include "kernel.hh" 
 #include "assert.hh"
 #include "buffer.hh"
-#include "cfg.hh"
 #include "datapath-join.hh"
 #include "datapath-leave.hh"
 #include "echo-request.hh"
 #include "event-dispatcher.hh"
 #include "flow-mod-event.hh"
-#include "ofmp-config-update.hh"
-#include "ofmp-config-update-ack.hh"
-#include "ofmp-resources-update.hh"
 #include "openflow.hh"
-#include "openflow/nicira-ext.h"
-#include "openflow/openflow-mgmt.h"
 #include "openflow-event.hh"
 #include "poll-loop.hh"
 #include "shutdown-event.hh"
 #include "string.hh"
-#include "switch-mgr.hh"
-#include "switch-mgr-join.hh"
-#include "switch-mgr-leave.hh"
 #include "threads/signals.hh"
 #include "timeval.hh"
 #include "vlog.hh"
@@ -83,19 +74,8 @@ private:
 
     bool do_poll();
 };
-
-// DPID to connection mappings 
 typedef std::map<datapathid, Conn*> chashmap;
 static chashmap connection_map;
-
-// DPID to management ID mappings 
-typedef std::map<datapathid, datapathid> mhashmap;
-static mhashmap mgmt_map;
-
-// Management ID to switch monitor object mappings 
-typedef std::map<datapathid, boost::shared_ptr<Switch_mgr> > swmhashmap;
-static swmhashmap swm_map;
-
 
 Conn::Conn(boost::shared_ptr<Openflow_connection> oconn_,
            Co_sema* disconnected_)
@@ -124,94 +104,6 @@ dpid_to_oconn(datapathid dpid)
     return iter->second->oconn;
 }
 
-boost::shared_ptr<Switch_mgr>
-mgmtid_to_swm(datapathid mgmt_id)
-{
-    swmhashmap::iterator iter = swm_map.find(mgmt_id);
-    if (iter == swm_map.end()) {
-        // this happens legitimately due to a race between
-        // the switch connection and the management connection
-        lg.dbg("no manager with id %s registered at nox",
-               mgmt_id.string().c_str());
-        return boost::shared_ptr<Switch_mgr>();
-    }
-    return iter->second;
-}
-
-// Given a datapath id, returns a management id.  If one cannot be
-// found, returns a 'datapathid' object with value of 0.
-datapathid
-dpid_to_mgmtid(datapathid dpid)
-{
-    mhashmap::iterator iter = mgmt_map.find(dpid);
-    if (iter == mgmt_map.end()) {
-        lg.err("no manager found for datapath id %s", dpid.string().c_str());
-        return datapathid();
-    }
-    return iter->second;
-}
-
-bool
-active_mgmt(const datapathid& mgmtid)
-{
-    for (mhashmap::const_iterator it = mgmt_map.begin();
-         it != mgmt_map.end(); ++it)
-    {
-        if (it->second == mgmtid) {
-            return true;
-        }
-    }
-    return false;
-}
-
-Disposition
-handle_ofmp_config(const Event &e)
-{
-    const Ofmp_config_update_event& ocu
-            = assert_cast<const Ofmp_config_update_event&>(e);
-
-    if (boost::shared_ptr<Switch_mgr> swm = nox::mgmtid_to_swm(ocu.mgmt_id)) {
-        swm->set_config(ocu.new_config);
-    } else {
-        lg.warn("got config update for unknown switch mgr %s", 
-                ocu.mgmt_id.string().c_str());
-    }
-
-    return CONTINUE;
-}
-
-Disposition
-handle_ofmp_config_ack(const Event &e)
-{
-    const Ofmp_config_update_ack_event& ocua
-            = assert_cast<const Ofmp_config_update_ack_event&>(e);
-
-    if (boost::shared_ptr<Switch_mgr> swm = nox::mgmtid_to_swm(ocua.mgmt_id)) {
-        swm->config_ack_handler(ocua);
-    } else {
-        lg.warn("got config ack for unknown switch mgr %s", 
-                ocua.mgmt_id.string().c_str());
-    }
-
-    return CONTINUE;
-}
-
-Disposition
-handle_ofmp_resources_update(const Event &e)
-{
-    const Ofmp_resources_update_event& orm
-            = assert_cast<const Ofmp_resources_update_event&>(e);
-
-    if (boost::shared_ptr<Switch_mgr> swm = nox::mgmtid_to_swm(orm.mgmt_id)) {
-        swm->resources_update_handler(orm);
-    } else {
-        lg.warn("got resource update for unknown switch mgr %s", 
-                orm.mgmt_id.string().c_str());
-    }
-
-    return CONTINUE;
-}
-
 bool
 Conn::poll()
 {
@@ -230,17 +122,9 @@ Conn::close()
     if (!closing) {
         closing = true;
         datapathid dp_id = oconn->get_datapath_id();
-        datapathid mgmt_id = oconn->get_mgmt_id();
-        if (dp_id == mgmt_id) {
-            Switch_mgr_leave_event* swmle = new Switch_mgr_leave_event(mgmt_id);
-            swm_map.erase(mgmt_id);
-            post_event(swmle);
-        } else {
-            Datapath_leave_event* dple = new Datapath_leave_event(dp_id);
-            post_event(dple);
-        }
+        Datapath_leave_event* dple = new Datapath_leave_event(dp_id);
         connection_map.erase(dp_id);
-        mgmt_map.erase(dp_id);
+        post_event(dple);
         main_loop->remove_pollable(this);
         if (!poll_cnt) {
             delete this;
@@ -253,37 +137,38 @@ Conn::do_poll()
 {
     int error;
     std::auto_ptr<Buffer> b(oconn->recv_openflow(error, false));
+
     switch (error) {
     case 0: {
-        std::auto_ptr<Buffer> msgB(new Array_buffer(b.get()->size()));
-        memcpy(msgB.get()->data(), b.get()->data(), b.get()->size());
+      std::auto_ptr<Buffer> msgB(new Array_buffer(b.get()->size()));
+      memcpy(msgB.get()->data(), b.get()->data(), b.get()->size());
 
-        std::auto_ptr<Event> event(openflow_packet_to_event(oconn, b));
-        if (event.get()) {
-            event_dispatcher.dispatch(*event);
-        }
+      datapathid dp_id = oconn->get_datapath_id();
+      std::auto_ptr<Event> event(openflow_packet_to_event(dp_id, b));
+      if (event.get())
+	event_dispatcher.dispatch(*event);
 
-        event.reset(openflow_msg_to_event(oconn, msgB));
-	if (event.get())
-	    event_dispatcher.dispatch(*event);
+      event.reset(openflow_msg_to_event(dp_id, msgB));
+      if (event.get())
+	event_dispatcher.dispatch(*event);
 
-        return true;
+      return true;
     }
 
     case EAGAIN:
         return false;
 
-    case EOF:
-        lg.warn("%s: connection closed by peer", oconn->to_string().c_str());
-        close();
-        return true;
- 
     default:
         lg.warn("%s: disconnected (%s)",
                 oconn->to_string().c_str(), strerror(error));
         close();
         return true;
-   }
+
+    case EOF:
+        lg.warn("%s: connection closed by peer", oconn->to_string().c_str());
+        close();
+        return true;
+    }
 }
 
 void
@@ -352,21 +237,10 @@ init()
     classifier.register_packet_in();
     register_handler(Echo_request_event::static_get_name(),
                      handle_echo_request, 100);
-    register_handler(Ofmp_config_update_event::static_get_name(),
-                     handle_ofmp_config, 100);
-    register_handler(Ofmp_config_update_ack_event::static_get_name(),
-                     handle_ofmp_config_ack, 100);
-    register_handler(Ofmp_resources_update_event::static_get_name(),
-                     handle_ofmp_resources_update, 100);
     main_loop = new Poll_loop(N_THREADS);
     main_loop->add_pollable(&event_dispatcher);
     main_loop->add_pollable(&timer_dispatcher);
     new Signal_handler;
-}
-
-Poll_loop*
-get_poll_loop() {
-    return main_loop;
 }
 
 void
@@ -471,22 +345,6 @@ int send_del_snat(const datapathid &datapath_id, uint16_t port){
         return ESRCH;
     }
     return oconn->send_del_snat(port);
-}
-
-uint32_t get_switch_controller_ip(const datapathid &datapath_id){
-    boost::shared_ptr<Openflow_connection> oconn = dpid_to_oconn(datapath_id);
-    if (!oconn) {
-        return 0; //indicates invalid IP 0.0.0.0
-    }
-    return oconn->get_local_ip();
-}
-
-uint32_t get_switch_ip(const datapathid &datapath_id){
-    boost::shared_ptr<Openflow_connection> oconn = dpid_to_oconn(datapath_id);
-    if (!oconn) {
-        return 0; //indicates invalid IP 0.0.0.0
-    }
-    return oconn->get_remote_ip();
 }
 
 class Log_fetcher {
@@ -787,20 +645,9 @@ public:
     Handshake_fsm(std::auto_ptr<Openflow_connection>, 
               Co_sema* disconnected, int *errorp, int timeout_secs_);
 private:
-    enum Handshake_state { SEND_FEATURES_REQ = 0, 
-                           SEND_CONFIG,
-                           RECV_FEATURES_REPLY,
-                           SEND_MGMT_CAPABILITY_REQ,
-                           RECV_MGMT_CAPABILITY_REPLY,
-                           SEND_MGMT_RESOURCES_REQ,
-                           RECV_MGMT_RESOURCES_UPDATE,
-                           SEND_MGMT_CONFIG_REQ,
-                           RECV_MGMT_CONFIG_UPDATE,
-                           CHECK_SWITCH_AUTH, 
-                           CHECK_MGMT_AUTH, 
-                           REGISTER_SWITCH, 
-                           REGISTER_MGMT, 
-                           NUM_STATES };
+    enum Handshake_state { SEND_FEATURES_REQ = 0, SEND_CONFIG,
+                           RECV_FEATURES_REPLY, CHECK_SWITCH_AUTH,
+                           REGISTER_SWITCH, NUM_STATES };
 
     static std::string state_desc[NUM_STATES]; 
     std::auto_ptr<Openflow_connection> oconn;
@@ -812,38 +659,17 @@ private:
     Co_completion completion; // used to signal switch approval is done
     bool switch_approved;
 
-    datapathid mgmt_id;
-    Cfg swm_caps;             // Initial manager capabilities
-    Cfg swm_config;           // Initial manager config
-
-    // Buffer to handle OFMP extended data messages
-    std::auto_ptr<Buffer> ext_data_buffer; 
-    uint32_t ext_data_xid;
-
-    void handle_vendor(std::auto_ptr<Buffer> buf);
-    void handle_ofmp_capability(const ofmp_capability_reply *ocr, 
-            std::auto_ptr<Buffer> buf);
-    void handle_ofmp_config_update(const ofmp_config_update *ocu, 
-            std::auto_ptr<Buffer> buf);
-    void handle_ofmp_resources(const ofmp_resources_update *oru, 
-            std::auto_ptr<Buffer> buf);
-    void handle_ofmp_extended_data(const ofmp_extended_data *oed, 
-            std::auto_ptr<Buffer> buf);
-
     /* We need to buffer features reply so that we can create 
      * a Datapath_join_event if asynchronous switch authorization succeeds */ 
     std::auto_ptr<Buffer> features_reply_buf;
     ofp_switch_features *features_reply; 
 
-    Ofmp_resources_update_event *resources_event;
-
     void run();
     void send_message();
     void recv_message();
-    void check_switch_auth(Handshake_state next); 
-    void switch_auth_cb(bool is_valid, Handshake_state next); 
+    void check_switch_auth();
+    void switch_auth_cb(bool is_valid);
     void register_switch(); 
-    void register_mgmt(); 
     void do_exit(int error);
 };
 
@@ -851,16 +677,8 @@ std::string Handshake_fsm::state_desc[NUM_STATES] = {
                                           "sending features request", 
                                           "sending switch config", 
                                           "receiving features reply",
-                                          "sending ofmp capability request", 
-                                          "receiving ofmp capability reply", 
-                                          "sending ofmp resources request", 
-                                          "receiving ofmp resources reply", 
-                                          "sending ofmp config request", 
-                                          "receiving ofmp config update", 
                                           "checking switch auth",
-                                          "checking management auth",
-                                          "registering switch",
-                                          "registering mgmt channel"}; 
+                                          "registering switch" };
 
 Handshake_fsm::Handshake_fsm(std::auto_ptr<Openflow_connection> oconn_,
                     Co_sema* disconnected_, int* errorp_, int timeout_secs_)
@@ -870,17 +688,14 @@ Handshake_fsm::Handshake_fsm(std::auto_ptr<Openflow_connection> oconn_,
       disconnected(disconnected_),
       errorp(errorp_),
       state(SEND_FEATURES_REQ),
-      switch_approved(false), 
-      ext_data_xid(UINT32_MAX),
-      features_reply(NULL),
-      resources_event(NULL)
+      switch_approved(false)
 {
-    ext_data_buffer.reset(new Array_buffer(0));
     co_fsm_create(co_group_self(), boost::bind(&Handshake_fsm::run, this));
 }
 
 void Handshake_fsm::send_message() {
     int error; 
+    std::string desc;
     Handshake_state next_state; 
     if(state == SEND_FEATURES_REQ) {
       error = oconn->send_features_request();
@@ -888,15 +703,6 @@ void Handshake_fsm::send_message() {
     } else if (state == SEND_CONFIG) { 
       error = oconn->send_switch_config(); 
       next_state = RECV_FEATURES_REPLY; 
-    } else if (state == SEND_MGMT_CAPABILITY_REQ) { 
-      error = oconn->send_ofmp_capability_request(); 
-      next_state = RECV_MGMT_CAPABILITY_REPLY; 
-    } else if (state == SEND_MGMT_RESOURCES_REQ) { 
-      error = oconn->send_ofmp_resources_request(); 
-      next_state = RECV_MGMT_RESOURCES_UPDATE; 
-    } else if (state == SEND_MGMT_CONFIG_REQ) { 
-      error = oconn->send_ofmp_config_request(); 
-      next_state = RECV_MGMT_CONFIG_UPDATE; 
     } else { 
       lg.err("Invalid state %d in Handshake_fsm::send_openflow()\n", state);
       do_exit(EINVAL);
@@ -912,191 +718,15 @@ void Handshake_fsm::send_message() {
         do_exit(error);
     } else {
         state = next_state; 
-        lg.dbg("Success sending in '%s'", state_desc[state].c_str());
+        lg.dbg("Success %s", desc.c_str());
         co_fsm_yield();
     }
 }
 
-void Handshake_fsm::handle_ofmp_capability(const ofmp_capability_reply *ocr,
-        std::auto_ptr<Buffer> buf)
-{
-    int data_len = buf->size() - sizeof(*ocr);
-    if (data_len < 0) {
-        lg.warn("received bad ofmp capability reply");
-        return;
-    }
-
-    if (ocr->format != htonl(OFMPCAF_SIMPLE)) {
-        lg.warn("received unsupported ofmp capability format: %d",
-                ntohl(ocr->format));
-        return;
-    }
-
-    mgmt_id = datapathid::from_net(ocr->mgmt_id);
-
-    swm_caps.load(ocr->data, data_len);
-    
-    if (!swm_caps.get_bool(0, "com.nicira.mgmt.manager")) {
-        // This is not a management connection
-        lg.dbg("datapath %012"PRIx64" has manager %s\n", 
-                ntohll(features_reply->datapath_id), 
-                mgmt_id.string().c_str()); 
-        state = CHECK_SWITCH_AUTH; 
-        return;
-    }
-
-    state = SEND_MGMT_RESOURCES_REQ; 
-}
-
-void Handshake_fsm::handle_ofmp_resources(const ofmp_resources_update *oru,
-        std::auto_ptr<Buffer> buf)
-{
-    /* The OFMP resources update event constructor already parses these
-     * messages, so even though we don't need an event, it's a useful
-     * container.
-     */
-    resources_event = new Ofmp_resources_update_event(mgmt_id, oru,
-            buf->size());
-}
-
-void Handshake_fsm::handle_ofmp_config_update(const ofmp_config_update *ocu,
-        std::auto_ptr<Buffer> buf)
-{
-    int data_len = buf->size() - sizeof(*ocu);
-    if (data_len < 0) {
-        lg.warn("Received bad ofmp config update\n");
-        return;
-    }
-    if (ocu->format != htonl(OFMPCOF_SIMPLE)) {
-        lg.warn("unsupported config format: %d\n", ntohl(ocu->format));
-        return;
-    }
-
-    swm_config.load(ocu->data, data_len);
-}
-
-void Handshake_fsm::handle_ofmp_extended_data(const ofmp_extended_data *oed,
-        std::auto_ptr<Buffer> buf)
-{
-    int len = buf->size() - sizeof *oed;
-    uint8_t *ptr;
-
-    if (buf->size() <= sizeof *oed) {
-        lg.warn("Received too short ofmp extended message: %d\n", len);
-        return;
-    }
-
-    ext_data_xid = oed->header.header.header.xid;
-
-    ptr = ext_data_buffer->put(len);
-    memcpy(ptr, oed->data, len);
-
-    if (!(oed->flags & OFMPEDF_MORE_DATA)) {
-        /* An embedded message must be greater than the size of an
-         * OpenFlow message. */
-        if (ext_data_buffer->size() < 65536) {
-            lg.warn("Received short embedded message: %zu\n",
-                    ext_data_buffer->size());
-            return;
-        }
-
-        /* Make sure that this is a management message and that there's
-         * not an embedded extended data message. */
-        ofmp_header *ofmph = ext_data_buffer->try_at<ofmp_header>(0);
-        if ((ofmph->header.vendor != htonl(NX_VENDOR_ID))
-                || (ofmph->header.subtype != htonl(NXT_MGMT))
-                || (ofmph->type == htonl(OFMPT_EXTENDED_DATA))) {
-            lg.warn("Received bad embedded extended message\n");
-            return;
-        }
-        ofmph->header.header.xid = ext_data_xid;
-        ofmph->header.header.length = 0;
-
-        handle_vendor(ext_data_buffer);
-        ext_data_buffer.reset(new Array_buffer(0));
-    }
-}
-
-void Handshake_fsm::handle_vendor(std::auto_ptr<Buffer> buf) 
-{
-    // The only vendor extension we care about are the Nicira management
-    // ones, so ignore any others.
-    nicira_header *nh = buf->try_at<nicira_header>(0);
-    if (nh && (nh->vendor == htonl(NX_VENDOR_ID))
-            && (nh->subtype == htonl(NXT_MGMT))) {
-
-        if (ofmp_header *ofmph = buf->try_at<ofmp_header>(0)) {
-            /* Reset the extended data buffer if we're certain that this isn't a
-             * continuation of an existing extended data message. */
-            if (ext_data_xid != ofmph->header.header.xid) {
-                if (ext_data_buffer->size() > 0) {
-                    ext_data_buffer.reset(new Array_buffer(0));
-                }
-            }   
-
-            switch (ntohs(ofmph->type)) {
-            case OFMPT_CAPABILITY_REPLY: {
-                    if(state != RECV_MGMT_CAPABILITY_REPLY) { 
-                      lg.warn("Ignoring mgmt capability reply "
-                              "received while in state '%s'", 
-                              state_desc[state].c_str()); 
-                      return; 
-                    }
-                    ofmp_capability_reply *ocr =
-                        buf->try_at<ofmp_capability_reply>(0);
-                    handle_ofmp_capability(ocr, buf);
-                }
-                break;
-            case OFMPT_RESOURCES_UPDATE: {
-                    if(state != RECV_MGMT_RESOURCES_UPDATE) { 
-                      lg.warn("Ignoring mgmt resources update "
-                              "received while in state '%s'", 
-                              state_desc[state].c_str()); 
-                      return; 
-                    }
-                    ofmp_resources_update *oru =
-                        buf->try_at<ofmp_resources_update>(0);
-                    handle_ofmp_resources(oru, buf);
-                }
-                state = SEND_MGMT_CONFIG_REQ; 
-                break;
-            case OFMPT_CONFIG_UPDATE: {
-                    if(state != RECV_MGMT_CONFIG_UPDATE) { 
-                      lg.warn("Ignoring mgmt config update "
-                              "received while in state '%s'", 
-                              state_desc[state].c_str()); 
-                      return; 
-                    }
-                    ofmp_config_update *ocu =
-                        buf->try_at<ofmp_config_update>(0);
-                    handle_ofmp_config_update(ocu, buf);
-                }
-                state = CHECK_MGMT_AUTH; 
-                break;
-            case OFMPT_ERROR: {
-                    ofmp_error_msg *oem =
-                        buf->try_at<ofmp_error_msg>(0);
-                    lg.warn("received ofmp error with type %d and code %d\n",
-                            ntohs(oem->type), ntohs(oem->code));
-                }
-                break;
-            case OFMPT_EXTENDED_DATA: {
-                    ofmp_extended_data *oed =
-                        buf->try_at<ofmp_extended_data>(0);
-                    handle_ofmp_extended_data(oed, buf);
-                }
-                break;
-            default:
-                lg.warn("received unknown mgmt type: %d", 
-                        ntohs(ofmph->type));
-                // ignore message, do not change state
-                break;
-            }
-        }
-    }
-}
-
 void Handshake_fsm::recv_message() {
+
+    // only one valid state for now
+    assert(state == RECV_FEATURES_REPLY);
 
     int error;
     std::auto_ptr<Buffer> buf = oconn->recv_openflow(error, false);
@@ -1112,120 +742,49 @@ void Handshake_fsm::recv_message() {
         return; 
     } 
     if (ofp_header* oh = buf->try_at<ofp_header>(0)) {
-      lg.dbg("Success receiving in '%s'", state_desc[state].c_str());
       switch (oh->type) {
         case OFPT_FEATURES_REPLY:
-          if(state != RECV_FEATURES_REPLY) { 
-              lg.warn("Ignoring features reply "
-                      "received while in state '%s'", 
-                      state_desc[state].c_str()); 
-              break; 
-          }
-
           // save features reply for switch auth and registration 
           features_reply_buf = buf;
           features_reply = features_reply_buf->try_at<ofp_switch_features>(0);
-
           if(features_reply) 
-            state = SEND_MGMT_CAPABILITY_REQ;
-          break;
-        case OFPT_VENDOR: 
-          handle_vendor(buf);
+            state = CHECK_SWITCH_AUTH;
           break;
         case OFPT_ECHO_REQUEST:
           oconn->send_echo_reply(oh);
-          break;
-        case OFPT_ERROR:
-          if (state == RECV_MGMT_CAPABILITY_REPLY) {
-            lg.dbg("Datapath %012"PRIx64" sent error in response to "
-                    "capability reply, assuming no management support",
-                    ntohll(features_reply->datapath_id)); 
-            state = CHECK_SWITCH_AUTH;
-          } else {
-            ofp_error_msg *oem = buf->try_at<ofp_error_msg>(0);
-            lg.warn("Received error during handshake (%d/%d)",
-                    ntohs(oem->type), ntohs(oem->code));
-            do_exit(EINVAL);
-            return;
-          }
-          break;
-        case OFPT_PACKET_IN:
-          /* These messages can be received before nox considers the
-           * handshake to be complete, and don't indicate an error. */
-          lg.dbg("Dropping packet in message during handshake");
-          break;
-        default:
-          lg.warn("Received unsupported message type during handshake (%d)",
-                  oh->type);
           break;
       }
     }
     co_fsm_yield();
 }
 
-void Handshake_fsm::check_switch_auth(Handshake_state next) {
+void Handshake_fsm::check_switch_auth() {
  
   Switch_Auth* auth = nox::get_switch_auth(); 
   if(!auth) { 
     lg.dbg("No switch auth module registered, auto-approving switch\n"); 
     switch_approved = true;
-    state = next; 
+    state = REGISTER_SWITCH;
     run();
     return; 
   }  
-  assert(features_reply);     
+
   auth->check_switch_auth(oconn, features_reply, 
-      boost::bind(&Handshake_fsm::switch_auth_cb,this,_1,next));  
+      boost::bind(&Handshake_fsm::switch_auth_cb,this,_1));
   completion.wait(NULL); 
   co_fsm_block();
 } 
 
-void Handshake_fsm::switch_auth_cb(bool is_approved,Handshake_state next) {
+void Handshake_fsm::switch_auth_cb(bool is_approved) {
   switch_approved = is_approved;
-  state = next; 
+  state = REGISTER_SWITCH;
   completion.release(); // restart FSM
 } 
-
-void Handshake_fsm::register_mgmt() { 
-    
-    if(!switch_approved) { 
-      lg.err("Disconnecting unapproved management channel %"PRIx64" \n", mgmt_id.as_host());
-      do_exit(EPERM);
-      return; 
-    }
-    if(mgmt_id.as_host() == 0) { 
-      lg.err("0 is not a valid management id. Disconnecting.");
-      do_exit(EINVAL);
-      return; 
-    }
-
-    oconn->set_datapath_id(mgmt_id);
-    oconn->set_mgmt_id(mgmt_id);
-    register_conn(oconn.release(), disconnected);
-
-    Switch_mgr *swm = new Switch_mgr(mgmt_id);
-    swm->set_capabilities(swm_caps);
-    swm->set_config(swm_config);
-    assert(resources_event); 
-    swm->resources_update_handler(*resources_event);
-    swm_map.insert(swmhashmap::value_type(mgmt_id, 
-                boost::shared_ptr<Switch_mgr>(swm)));
-
-    lg.dbg("Registering mgmt channel with id = %"PRIx64"\n",mgmt_id.as_host()); 
-    /* Really we want to just dispatch this event immediately, but that would
-     * prevent any handlers for it from blocking, since we're running inside
-     * an FSM. */
-    // NOTE: event steals auto_ptr to feature
-    event_dispatcher.post(new Switch_mgr_join_event(mgmt_id));
-    disconnected = NULL;
-
-    do_exit(0);
-}
 
 void Handshake_fsm::register_switch() { 
     datapathid dpid = datapathid::from_net(features_reply->datapath_id); 
     if(!switch_approved) { 
-      lg.err("Disconnecting unapproved switch %"PRIx64" \n", dpid.as_host());
+      lg.err("Disconnecting unapproved switch %"PRIx64"\n",dpid.as_host());
       do_exit(EPERM);
       return; 
     }
@@ -1237,9 +796,7 @@ void Handshake_fsm::register_switch() {
     }
 
     oconn->set_datapath_id(dpid);
-    oconn->set_mgmt_id(mgmt_id);
     register_conn(oconn.release(), disconnected);
-    mgmt_map.insert(mhashmap::value_type(dpid, mgmt_id));
 
     /* delete all flows on this switch */
     {
@@ -1251,14 +808,14 @@ void Handshake_fsm::register_switch() {
         ofm->header.type   = OFPT_FLOW_MOD;
         ofm->header.length = htons(size);
         ofm->match.wildcards = htonl(0xffffffff);
-	ofm->cookie = htonl(0);
         ofm->command = htons(OFPFC_DELETE);
         ofm->buffer_id    = htonl(0);
         ofm->idle_timeout = htons(0);
         ofm->hard_timeout = htons(0);
         ofm->priority     = htons(0);
         ofm->out_port     = htons(OFPP_NONE);
-        ofm->flags        = htons(0);
+        ofm->cookie    = htonl(0);
+        ofm->flags     = htons(0);
         /* XXX OK to do non-blocking send?  We do so with all other
          * commands on switch join */
         if ( send_openflow_command(dpid, &ofm->header, false) == EAGAIN) {
@@ -1283,12 +840,11 @@ void Handshake_fsm::run()
     timeval now = do_gettimeofday();
     if (now > timeout) {
         lg.warn("%s: closing connection due to timeout after %d seconds in "
-                "%s state ", oconn->to_string().c_str(), timeout_secs,
+                "%s state", oconn->to_string().c_str(), timeout_secs,
                 state_desc[state].c_str());
         do_exit(ETIMEDOUT);
         return;
     }
-
     switch (state) { 
       case SEND_FEATURES_REQ: 
         send_message();
@@ -1299,35 +855,11 @@ void Handshake_fsm::run()
       case RECV_FEATURES_REPLY: 
         recv_message(); 
         break; 
-      case SEND_MGMT_CAPABILITY_REQ:
-        send_message();
-        break;
-      case RECV_MGMT_CAPABILITY_REPLY:
-        recv_message();
-        break;
-      case SEND_MGMT_RESOURCES_REQ:
-        send_message();
-        break;
-      case RECV_MGMT_RESOURCES_UPDATE:
-        recv_message();
-        break;
-      case SEND_MGMT_CONFIG_REQ:
-        send_message();
-        break;
-      case RECV_MGMT_CONFIG_UPDATE:
-        recv_message();
-        break;
       case CHECK_SWITCH_AUTH: 
-        check_switch_auth(REGISTER_SWITCH);
-        break;
-      case CHECK_MGMT_AUTH: 
-        check_switch_auth(REGISTER_MGMT);
+        check_switch_auth();
         break;
       case REGISTER_SWITCH: 
         register_switch(); 
-        break; 
-      case REGISTER_MGMT: 
-        register_mgmt(); 
         break; 
       default: 
         lg.err("Invalid Handshake state = %d \n", state); 
@@ -1341,9 +873,6 @@ void Handshake_fsm::do_exit(int error)
     }
     if (disconnected) {
         disconnected->up();
-    }
-    if(resources_event){
-      delete resources_event; 
     }
     co_fsm_exit();
     delete this; 

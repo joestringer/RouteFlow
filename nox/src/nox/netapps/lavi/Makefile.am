@@ -1,71 +1,72 @@
 include ../../../Make.vars 
 
-EXTRA_DIST =\
-	meta.json
-
 if PY_ENABLED
 AM_CPPFLAGS += $(PYTHON_CPPFLAGS)
-endif # PY_ENABLED 
 
-pkglib_LTLIBRARIES =\
-	lavi_hostflow.la \
-	lavitest_showflow.la \
-	lavi_host2sw.la \
-	lavi_hosts.la \
-	lavi_networkflow.la \
-	lavi_flows.la \
-	lavi_swlinks.la \
-	lavi_links.la \
-	lavi_nodes.la \
-	lavi_switches.la \
-	lavi.la
+pkglib_LTLIBRARIES =		\
+	golems.la \
+	bookman.la \
+	komui.la \
+	marie.la \
+	lenalee.la \
+	lavi.la \
+	timcanpy.la
+#golem.la timcanpy.la
 
-lavi_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/
-lavi_la_SOURCES = lavi.hh lavi.cc
+golems_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
+golems_la_SOURCES = golems.cc golems.hh bookman-msg-event.hh bookman-msg-event.cc bookman-message.hh
+golems_la_LDFLAGS = -module -export-dynamic
+
+bookman_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
+bookman_la_SOURCES = bookman.cc bookman.hh
+bookman_la_LDFLAGS = -module -export-dynamic
+
+komui_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
+komui_la_SOURCES = komui.cc komui.hh
+komui_la_LDFLAGS = -module -export-dynamic
+
+marie_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
+marie_la_SOURCES = marie.cc marie.hh
+marie_la_LDFLAGS = -module -export-dynamic
+
+lenalee_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
+lenalee_la_SOURCES = lenalee.cc lenalee.hh
+lenalee_la_LDFLAGS = -module -export-dynamic
+
+lavi_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
+lavi_la_SOURCES = lavi.cc lavi.hh
 lavi_la_LDFLAGS = -module -export-dynamic
 
-lavi_nodes_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_nodes_la_SOURCES = lavi_nodes.hh lavi_nodes.cc
-lavi_nodes_la_LDFLAGS = -module -export-dynamic
+timcanpy_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
+timcanpy_la_SOURCES = timcanpy.cc timcanpy.hh
+timcanpy_la_LDFLAGS = -module -export-dynamic
 
-lavi_switches_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_switches_la_SOURCES = lavi_switches.hh lavi_switches.cc
-lavi_switches_la_LDFLAGS = -module -export-dynamic
+#golem_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/
+#golem_la_SOURCES = golem.cc golem.hh
+#golem_la_LDFLAGS = -module -export-dynamic
 
-lavi_links_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_links_la_SOURCES = lavi_links.hh lavi_links.cc
-lavi_links_la_LDFLAGS = -module -export-dynamic
+NOX_RUNTIMEFILES = meta.xml
 
-lavi_swlinks_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_swlinks_la_SOURCES = lavi_swlinks.hh lavi_swlinks.cc
-lavi_swlinks_la_LDFLAGS = -module -export-dynamic
+NOX_RUNTIMEFILES += __init__.py
 
-lavi_flows_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_flows_la_SOURCES = lavi_flows.hh lavi_flows.cc
-lavi_flows_la_LDFLAGS = -module -export-dynamic
+pylavi_wrap.cc pylavi.py: pylavi.i
+	$(SWIG) $(SWIG_PYTHON_OPT) -I$(top_srcdir)/src/nox/lib/ -outdir $(builddir)/. -o pylavi_wrap.cc  -module pylavi $(srcdir)/pylavi.i
 
-lavi_networkflow_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_networkflow_la_SOURCES = lavi_networkflow.hh lavi_networkflow.cc
-lavi_networkflow_la_LDFLAGS = -module -export-dynamic
+pkglib_LTLIBRARIES += _pylavi.la
+_pylavi_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/src/nox -I$(srcdir)/../ -I$(top_builddir)/src/nox/ -I$(top_srcdir)/src/nox/coreapps/
+_pylavi_la_SOURCES = lavi_proxy.cc lavi_proxy.hh
+nodist__pylavi_la_SOURCES = pylavi_wrap.cc
+_pylavi_la_LDFLAGS = -module
 
-lavi_hosts_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_hosts_la_SOURCES = lavi_hosts.hh lavi_hosts.cc
-lavi_hosts_la_LDFLAGS = -module -export-dynamic
+NOX_PYLIBFILES = _pylavi.so
+endif # PY_ENABLED
 
-lavi_host2sw_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_host2sw_la_SOURCES = lavi_host2sw.hh lavi_host2sw.cc
-lavi_host2sw_la_LDFLAGS = -module -export-dynamic
 
-lavitest_showflow_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavitest_showflow_la_SOURCES = lavitest_showflow.hh lavitest_showflow.cc
-lavitest_showflow_la_LDFLAGS = -module -export-dynamic
+EXTRA_DIST = \
+	__init__.py \
+	pylavi.i \
+	meta.xml
 
-lavi_hostflow_la_CPPFLAGS = $(AM_CPPFLAGS) -I $(top_srcdir)/src/nox -I $(top_srcdir)/src/nox/netapps/ -I $(top_srcdir)/src/nox/coreapps/
-lavi_hostflow_la_SOURCES = lavi_hostflow.hh lavi_hostflow.cc
-lavi_hostflow_la_LDFLAGS = -module -export-dynamic
-
-NOX_RUNTIMEFILES = meta.json	
-
-all-local: nox-all-local
-clean-local: nox-clean-local 
+all-local:  nox-all-local
+clean-local: nox-clean-local
 install-exec-hook: nox-install-local

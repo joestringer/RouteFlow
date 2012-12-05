@@ -1,0 +1,53 @@
+.\" -*- nroff -*-
+.TH draw-vms 1 2008-10-10 "Stanford" "NOX Developer's Manual/OpenFlowVMS"
+
+.SH NAME
+
+draw-vms \- Draw network from command issued by start-vm
+
+.SH SYNOPSIS
+
+.B draw-vms
+.RI [ vmconf ]
+.RB [
+.BR ps/
+png]
+
+.br
+
+.SH DESCRIPTION
+
+The
+.B draw-vms
+program reads output of
+.B start-vm
+to draw the corresponding network being set up.
+
+.SH OPTIONS
+
+The
+.B draw-vms
+program accepts the following options.
+
+.IP \fIvmconf\fR
+.PD
+Use
+.I vmconf
+to indicate the configuration file to be drawn.
+
+.IP \fIps/png
+.PD
+Use to indicate the output file format to use.
+
+.SH Files
+
+.IP \fIvmconf\fR.\fBdot
+Graphviz input file for the network image.
+
+.IP \fIvmconf\fR.\fIps/png
+Output image file.  If output is postscript, it will be shown using
+.BR gv .
+
+.SH "SEE ALSO"
+
+.BR start-vm (1)

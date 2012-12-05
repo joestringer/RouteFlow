@@ -38,6 +38,9 @@ class NoxTestCase(unittest.TestCase, Component):
         unittest.TestCase.__init__(self, methodName)
         Component.__init__(self, ctxt)
 
+    def getInterface(self):
+        raise Exception('getInterface not implemented in the inheriting class')
+
     def configure(self, configuration):
         pass
 
@@ -121,7 +124,7 @@ def identify_tests():
         fsplit = file.split('.')
         if len(fsplit) != 2:
             continue
-        if fsplit[1] != 'py' and fsplit[1] != 'pyc':
+        if fsplit[1] != 'py':
             continue
         module = fsplit[0]
         if module == '__init__':

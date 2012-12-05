@@ -11,11 +11,12 @@
 /** Maximum length of a message in \ref vigil::messenger.
  */
 #define MESSENGER_MAX_MSG_SIZE 3072
-/** Maximum number of connections allowed in \ref vigil::messenger.
+/** Maixmum number of connections allowed in \ref vigil::messenger.
  */
 #define MESSENGER_MAX_CONNECTION 10
 
 #include "component.hh"
+#include "message.hh"
 #include "ssl-socket.hh"
 #include "tcp-socket.hh"
 #include "threads/cooperative.hh"
@@ -27,9 +28,8 @@ namespace vigil
 {
   using namespace vigil::container; 
 
-  /** \brief Async_stream for messenger.
-   *
-   * Include sending function for stream.
+
+  /** Async_stream for messenger.
    * 
    * Copyright (C) Stanford University, 2009.
    * @author ykk
@@ -60,93 +60,65 @@ namespace vigil
     ~Msg_stream()
     { ; }
 
-    /** Initialize packet with length and type.
-     * @param msg_raw message buffer reference
-     * @param size size of buffer to allocate
-     */
-    void init(boost::shared_array<uint8_t>& msg_raw, 
-		     ssize_t size) const;
-
-    /** Initialize JSON string with type and length.
-     * @param msg_raw message buffer reference
-     * @param str string to contain
-     * @param size size of buffer to allocate (if 0, use min to contain string)
-     * @param addbraces indidcate if braces should be added
-     */
-    void init(boost::shared_array<uint8_t>& msg_raw, const char* str, 
-		     ssize_t size=0, bool addbraces=true) const;
-
-    /** Send packet on given socket.
-     * @param msg message buffer reference
-     * @param size size of messages (if 0, assume length-type)
-     */
-    void send(boost::shared_array<uint8_t>& msg, 
-		     ssize_t size=0) const;
-
-    /** Send packet on given socket.
-     * @param str string to send
-     */
-    void send(const std::string& str) const;
-
     /** Reference to Async
      */
     Async_stream* stream;
     /** Indicate if socket is SSL, else is TCP.
      */
     bool isSSL;
-    /** Reference to magic item tagged with stream
-     */
-    void* magic;
   private:
   };
 
   /** \brief Structure holding message to and from messenger_core.
    *
-   * Copyright (C) Stanford University, 2010.
+   * Copyright (C) Stanford University, 2008.
    * @author ykk
-   * @date May 2010
-   * @see messenger_core
+   * @date December 2008
+   * @see messenger
    */
-  struct core_message
+  struct Msg_event : public Event
   {
     /** Constructor.
      * Allocate memory for message.
      * @param message message
      * @param socket socket message is received with
-     * @param size length of message received
      */
-    core_message(uint8_t* message, Msg_stream* socket, ssize_t size);
-
-    /** Empty Constructor.
-     * Allocate memory for message.
-     * @param socket socket message is received with
-     */
-    core_message(Msg_stream* socket);
+    Msg_event(messenger_msg* message, Msg_stream* socket);
 
     /** Destructor.
      */
-    ~core_message();
+    ~Msg_event();
+
+    /** Empty constructor.
+     * For use within python.
+     */
+    Msg_event() : Event(static_get_name())
+    { }
+
+    /** Static name required in NOX.
+     */
+    static const Event_name static_get_name()
+    {
+      return "Msg_event";
+    }
 
     /** Print array of bytes for debug.
      */
     void dumpBytes();
 
-    /** Length of message.
+    /** Array reference to hold message.
      */
-    ssize_t len;
+    messenger_msg* msg;
     /** Memory allocated for message.
      */
     boost::shared_array<uint8_t> raw_msg;
-    /** Reference to socket.
+    /** Reference to TCP socket.
      */
     Msg_stream* sock;
   };   
   
   /** Messenger processing class.
    *
-   * Can be inherited by multiple classes to have different
-   * server sockets listening on different ports.
-   * 
    * Copyright (C) Stanford University, 2009.
    * @author ykk
    * @date May 2009
@@ -155,59 +127,24 @@ namespace vigil
   class message_processor: public Component
   {
   public:
-    /** \brief Code for special event
-     */
-    enum message_code
-    {
-      msg_code_normal,
-      msg_code_new_connection,
-      msg_code_disconnection,
-    };
-
     /** Constructor.
      * @param c context as required by Component
-     * @param node JSON object
+     * @param node Xercesc DOMNode
      */
-    message_processor(const Context* c, const json_object* node): 
+    message_processor(const Context* c, const xercesc::DOMNode* node):
       Component(c)
     { };
 
-    /** Function to do processing for block received.
-     * @param buf pointer to block received
-     * @param dataSize size of block
-     * @param data pointer to current message data (block not added)
-     * @param currSize size of current message
-     * @param sock reference to socket
-     * @return length to copy to current message data
-     */
-    virtual ssize_t processBlock(uint8_t* buf, ssize_t& dataSize,
-				 uint8_t* data, ssize_t currSize, 
-				 Msg_stream* sock)
-    { return 0; };
-
-    /** Function to determine message is completed.
-     * @param data pointer to current message data (block not added)
-     * @param currSize size of current message
-     * @param sock reference to message stream
-     * @return if message is completed (i.e., can be posted)
-     */
-    virtual bool msg_complete(uint8_t* data, ssize_t currSize,
-			      Msg_stream* sock)
-    { return false; };
-
     /** Function to do processing for messages received.
-     *
-     * @see #message_code
      * @param msg message event for message received
-     * @param code code for special events
      */
-    virtual void process(const core_message* msg, int code=0)
+    virtual void process(const Msg_event* msg)
     {};
 
     /** Send echo request.
      * @param sock socket to send echo request over
      */
-    virtual void send_echo(Msg_stream* sock)
+    virtual void send_echo(Async_stream* sock)
     {};
 
     /** Periodic check interval (in terms idle time, in sec)
@@ -217,9 +154,6 @@ namespace vigil
     /** Threshold echo missed before terminated connection.
      */
     uint8_t thresholdEchoMissed;
-    /** Send message event upon new connection.
-     */
-    bool newConnectionMsg;
   };
 
   /** \brief Core of message interaction with NOX.
@@ -244,9 +178,9 @@ namespace vigil
     /** Constructor.
      * Start server socket.
      * @param c context as required by Component
-     * @param node JSON object
+     * @param node Xercesc DOMNode
      */
-    messenger_core(const Context* c, const json_object* node): 
+    messenger_core(const Context* c, const xercesc::DOMNode* node):
       Component(c)
     { };
 
@@ -387,23 +321,12 @@ namespace vigil
 
     /** Function to check for disconnect messages.
      * @param msg message event for message received
-     * @param code code for special event
      */
-    void process(const core_message* msg, int code=0);
-
-    /** Post disconnection message
-     * @param sock socket reference
-     */
-    void post_disconnect(Msg_stream* sock);
+    void process(const Msg_event* msg);
 
     /** Check idle time.
      */
     void check_idle();
-
-    /** Send message for new connection.
-     * @param sock socket reference
-     */
-    void send_new_connection_msg(Msg_stream* sock);
 
     /** Internal buffer for message.
      * @see MESSENGER_MAX_MSG_SIZE
@@ -459,7 +382,7 @@ namespace vigil
     /** Thread that listens to socket for packets.
      * Sends each message for processing.
      * Closes socket once terminated via message.
-     * @see process(const uint8_t* msg, int code)
+     * @see process(const uint8_t* msg)
      */
     void run();
 
@@ -494,7 +417,7 @@ namespace vigil
     /** Thread that listens to socket for packets.
      * Sends each message for processing.
      * Closes socket once terminated via message.
-     * @see process(const uint8_t* msg, int code)
+     * @see process(const uint8_t* msg)
      */
     void run();
 

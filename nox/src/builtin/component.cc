@@ -48,14 +48,6 @@ Component::send_openflow_command(const datapathid& datapath_id,
     return nox::send_openflow_command(datapath_id, oh, block);
 }
 
-int 
-Component::send_openflow_command(const datapathid& datapath_id, 
-                                 boost::shared_array<uint8_t>& of_raw, 
-				 bool block) const {
-    return nox::send_openflow_command(datapath_id, 
-				      (ofp_header *) of_raw.get(), block);
-}
-
 int
 Component::send_openflow_packet(const datapathid& datapath_id, 
                                 uint32_t buffer_id, uint16_t out_port, 
@@ -150,7 +142,7 @@ Component::register_handler(const Event_name& event_name,
     EventDispatcherComponent* dispatcher;
     resolve<EventDispatcherComponent>(dispatcher);
     if (!dispatcher->register_handler(ctxt->get_name(), event_name, h)) {
-        throw runtime_error("Event '" + event_name +"' doesn't exist.");
+        throw runtime_error("Event '" + event_name +"'doesn't exist.");
     }
 }
 
@@ -179,14 +171,6 @@ int Component::send_add_snat(const datapathid &datapath_id, uint16_t port,
 
 int Component::send_del_snat(const datapathid &datapath_id, uint16_t port){
     return nox::send_del_snat(datapath_id, port);
-}
-
-uint32_t Component::get_switch_controller_ip(const datapathid &datapath_id){
-    return nox::get_switch_controller_ip(datapath_id);
-}
-
-uint32_t Component::get_switch_ip(const datapathid &datapath_id){
-    return nox::get_switch_ip(datapath_id);
 }
 
 void 

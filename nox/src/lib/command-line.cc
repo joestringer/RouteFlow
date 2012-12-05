@@ -16,7 +16,6 @@
  * along with NOX.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "command-line.hh"
-#include <stdio.h>
 #include <exception>
 #include <getopt.h>
 #include <netinet/in.h>

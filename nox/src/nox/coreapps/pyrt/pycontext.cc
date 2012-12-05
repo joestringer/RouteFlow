@@ -17,11 +17,9 @@
  */
 #include "pycontext.hh"
 
-#ifndef SWIG
 #ifndef SWIGPYTHON
 #include "swigpyrun.h"
 #endif // SWIGPYTHON
-#endif // SWIG
 
 #include <iostream>
 #include <vector>
@@ -36,9 +34,6 @@
 
 #include "datapath-join.hh"
 #include "datapath-leave.hh"
-#include "switch-mgr.hh"
-#include "switch-mgr-join.hh"
-#include "switch-mgr-leave.hh"
 #include "bootstrap-complete.hh"
 #include "aggregate-stats-in.hh"
 #include "desc-stats-in.hh"
@@ -46,8 +41,8 @@
 #include "port-stats-in.hh"
 
 #include "echo-request.hh"
-#include "flow-mod-event.hh"
 #include "flow-removed.hh"
+#include "flow-mod-event.hh"
 #include "packet-in.hh"
 #include "port-status.hh"
 #include "pycomponent.hh"
@@ -76,17 +71,9 @@ PyContext::PyContext(const container::Context* ctxt_,
 }
 
 PyObject*
-PyContext::resolve(PyObject* interface)
-{
-    // If component returned a (class) type, translate it to a string.
-    if (interface && PyClass_Check(interface) && !PyInstance_Check(interface)) {
-        PyObject* t = interface;
-        interface = PyObject_Str(t);
-        Py_DECREF(t);
-    }
-
+PyContext::resolve(PyObject* interface) {
     if (!PyString_Check(interface)){
-        PyErr_SetString(PyExc_TypeError, "resolve expects an interface "
+        PyErr_SetString(PyExc_TypeError, "resolve excepts an interface string "
                         "as a parameter.");
         return 0;
     }
@@ -104,11 +91,6 @@ PyContext::resolve(PyObject* interface)
 Kernel*
 PyContext::get_kernel(){
     return ctxt->get_kernel();
-}
-
-const char*
-PyContext::get_version() {
-    return VERSION;
 }
 
 void
@@ -133,7 +115,6 @@ static void convert_python_event(const Event& e, PyObject* proxy) {
 
     if(sfe.python_arg){
         pyglue_setattr_string(proxy, "pyevent", sfe.python_arg);
-        Py_INCREF(sfe.python_arg);
     }else{
         pyglue_setattr_string(proxy, "pyevent", Py_None);
         vlog().log(vlog().get_module_val("pyrt"), Vlog::LEVEL_ERR,
@@ -141,7 +122,8 @@ static void convert_python_event(const Event& e, PyObject* proxy) {
         Py_INCREF(Py_None);
     }
 
-    ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(proxy);
+    ((Event*)swigo->ptr)->operator=(e);
 }
 
 void
@@ -253,11 +235,11 @@ PyContext::send_openflow_buffer(uint64_t datapath_id,
 void
 PyContext::send_flow_command(uint64_t datapath_id,
                              ofp_flow_mod_command command,
-                             const ofp_match& match, 
-			     uint16_t idle_timeout, uint16_t hard_timeout,
+                             const ofp_match& match, uint16_t idle_timeout,
+                             uint16_t hard_timeout,
                              const Nonowning_buffer& actions,
-                             uint32_t buffer_id, 
-			     uint16_t priority , uint64_t cookie) {
+                             uint32_t buffer_id, uint16_t priority,
+                             uint64_t cookie) {
     ofp_flow_mod* ofm = NULL;
     size_t size = sizeof *ofm + actions.size();
     boost::shared_array<uint8_t> raw_of(new uint8_t[size]);
@@ -285,8 +267,7 @@ PyContext::send_flow_command(uint64_t datapath_id,
                                          &ofm->header, false);
     if (error == EAGAIN) {
         vlog().log(vlog().get_module_val("pyrt"), Vlog::LEVEL_ERR,
-                   "unable to send flow setup for dpid: %"PRIx64"\n",
-                    datapath_id);
+                   "unable to send flow setup");
     }
 }
 
@@ -344,13 +325,6 @@ int PyContext::send_del_snat(uint64_t dpid, uint16_t port){
     return c->send_del_snat(datapathid::from_host(dpid), port);
 }
 
-uint32_t PyContext::get_switch_controller_ip(uint64_t dpid){
-    return c->get_switch_controller_ip(datapathid::from_host(dpid));
-}
-
-uint32_t PyContext::get_switch_ip(uint64_t dpid){
-    return c->get_switch_ip(datapathid::from_host(dpid));
-}
 
 
 void
@@ -364,8 +338,14 @@ PyContext::send_port_stats_request(uint64_t datapath_id, uint16_t port)
 {
     ofp_port_stats_request psr;
     psr.port_no = htons(port);
-    send_stats_request(datapath_id, OFPST_PORT, (const
-    uint8_t*)&psr, sizeof(struct ofp_port_stats_request));
+    send_stats_request(datapath_id, OFPST_PORT,
+            (const uint8_t*)&psr, sizeof(struct ofp_port_stats_request));
+}
+
+void
+PyContext::send_port_stats_request_with_xid(uint64_t datapath_id, uint32_t xid)
+{
+    send_stats_request_with_xid(datapath_id, OFPST_PORT, 0, 0, xid);
 }
 
 void
@@ -389,6 +369,12 @@ PyContext::send_aggregate_stats_request(uint64_t datapath_id, const struct ofp_m
 void
 PyContext::send_stats_request(uint64_t datapath_id, ofp_stats_types type, const uint8_t* data, size_t data_size )
 {
+    send_stats_request_with_xid(datapath_id, type, data, data_size, 0);
+}
+
+void
+PyContext::send_stats_request_with_xid(uint64_t datapath_id, ofp_stats_types type, const uint8_t* data, size_t data_size, uint32_t xid )
+{
     ofp_stats_request* osr = NULL;
     size_t msize = sizeof(ofp_stats_request) + data_size;
     boost::shared_array<uint8_t> raw_sr(new uint8_t[msize]);
@@ -398,7 +384,7 @@ PyContext::send_stats_request(uint64_t datapath_id, ofp_stats_types type, const 
     osr->header.type    = OFPT_STATS_REQUEST;
     osr->header.version = OFP_VERSION;
     osr->header.length  = htons(msize);
-    osr->header.xid     = 0;
+    osr->header.xid     = xid;
     osr->type           = htons(type);
     osr->flags          = htons(0); /* CURRENTLY NONE DEFINED */
 
@@ -410,8 +396,7 @@ PyContext::send_stats_request(uint64_t datapath_id, ofp_stats_types type, const 
                                          &osr->header, false);
     if (error == EAGAIN) {
         vlog().log(vlog().get_module_val("pyrt"), Vlog::LEVEL_ERR,
-                   "unable to send stats request for dpid: %"PRIx64"\n",
-                    datapath_id);
+                   "unable to send stats request");
     }
 }
 
@@ -438,13 +423,37 @@ PyContext::send_port_mod(uint64_t datapath_id, uint16_t port_no, ethernetaddr ad
                                          &opm->header, false);
     if (error == EAGAIN) {
         vlog().log(vlog().get_module_val("pyrt"), Vlog::LEVEL_ERR,
-                   "unable to send port_mod for dpid: %"PRIx64"\n",
-                    datapath_id);
+                   "unable to send port_mod");
     }
 
     return error;
 }
 
+int
+PyContext::send_switch_config(uint64_t datapath_id, uint16_t flags)
+{
+    ofp_switch_config* osc = NULL;
+    size_t msize = sizeof(ofp_switch_config);
+    boost::shared_array<uint8_t> raw_sr(new uint8_t[msize]);
+
+    // Send OFPT_STATS_REQUEST
+    osc = (ofp_switch_config*) raw_sr.get();
+    osc->header.type    = OFPT_SET_CONFIG;
+    osc->header.version = OFP_VERSION;
+    osc->header.length  = htons(msize);
+    osc->header.xid     = 0;
+    osc->flags          = htons(flags);
+    osc->miss_send_len  = htons(OFP_DEFAULT_MISS_SEND_LEN);
+
+    int error = c->send_openflow_command(datapathid::from_host(datapath_id),
+                                         &osc->header, false);
+    if (error == EAGAIN) {
+        vlog().log(vlog().get_module_val("pyrt"), Vlog::LEVEL_ERR,
+                   "unable to send switch_config");
+    }
+
+    return error;
+}
 
 bool
 PyContext::unregister_handler(uint32_t rule_id) {

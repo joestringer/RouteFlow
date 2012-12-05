@@ -49,7 +49,7 @@ class BSMemLeakTest
 public:
 
     BSMemLeakTest(const vigil::container::Context* c,
-                const json_object* xml) 
+                const xercesc::DOMNode* xml)
         : Component(c), b_store(NULL), trigger_count(0), counter(0)   {}
 
     ~BSMemLeakTest() { } 

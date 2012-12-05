@@ -20,7 +20,6 @@
 #include <openssl/err.h>
 #include <string.h>
 #include <assert.h>
-#include <stdint.h>
 #include "dhparams.h"
 #include "errno_exception.hh"
 #include "vlog.hh"
@@ -84,7 +83,7 @@ Ssl_config::init(Ssl_version version,
     static bool init = init_Ssl();
     assert(init);
 
-    SSL_CONST ::SSL_METHOD* method = ::SSLv23_method();
+    ::SSL_METHOD* method = ::SSLv23_method();
     if (method == NULL) {
         lg.err("SSLv23_method: %s", ::ERR_error_string(::ERR_get_error(),
                                                        NULL));
@@ -121,7 +120,7 @@ Ssl_config::init(Ssl_version version,
     ::SSL_CTX_set_tmp_dh_callback(ctx, tmp_dh_callback);
     ::SSL_CTX_set_mode(ctx, SSL_MODE_ENABLE_PARTIAL_WRITE);
     ::SSL_CTX_set_mode(ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-    ::SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+    ::SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_BOTH);
 
     uint32_t id = time(0);
     if (::SSL_CTX_set_session_id_context(ctx, (unsigned char*)(&id), sizeof(id)) != 1) {
@@ -316,7 +315,6 @@ SSL*
 Ssl_config::new_ssl(Session_type session)
 {
     SSL* ssl = ::SSL_new(ctx);
-
     if (ssl == NULL) {
         ::fprintf(stdout, "%s", ::ERR_error_string(::ERR_get_error(), NULL));
         ::fprintf(stderr, " (%s)", strerror(ENOPROTOOPT));

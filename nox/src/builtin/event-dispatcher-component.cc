@@ -30,55 +30,59 @@
 #include "aggregate-stats-in.hh"
 #include "desc-stats-in.hh"
 #include "flow-stats-in.hh"
-#include "queue-stats-in.hh"
-#include "queue-config-in.hh"
-#include "ofmp-config-update.hh"
-#include "ofmp-config-update-ack.hh"
-#include "ofmp-resources-update.hh"
 #include "port-stats-in.hh"
-#include "switch-mgr-join.hh"
-#include "switch-mgr-leave.hh"
-#include "barrier-reply.hh"
 #include "openflow-msg-in.hh"
 
 #include "nox.hh"
 #include "vlog.hh"
-#include "json_object.hh"
-#include "json-util.hh"
+#include "xml-util.hh"
 
 #include <iostream>
 
 using namespace std;
 using namespace vigil;
 using namespace vigil::container;
+using namespace xercesc;
 
 static Vlog_module lg("event-dispatcher-c");
 
 EventDispatcherComponent::EventDispatcherComponent(const Context* c,
-                                                   const json_object*
-                                                   platformconf)  
-                                                   
+                                                   const xercesc::DOMNode*
+                                                   platformconf)
     : Component(c) {
-    // Construct the 'filter sequences' defined the JSON configuration file  
-    json_object* nox = json::get_dict_value(platformconf, "nox");    
-    json_object* events = json::get_dict_value(nox, "events");
-    json_dict* eventsDict = (json_dict*) events->object;
+
+
+    // First construct the 'filter sequences' defined the XML
+    // configuration file.
+    const DOMNode* nox = xml::get_child_by_tag(platformconf, "nox");
+    assert(nox);
+    const DOMNode* events = xml::get_child_by_tag(nox, "events");
+    assert(events);
+    DOMNodeList* l = events->getChildNodes();
+    assert(l);
     
-    // For every event defined in the configuration
-    json_dict::iterator event_di;
-    for(event_di=eventsDict->begin(); event_di!=eventsDict->end(); ++event_di) {
-        string event_name = event_di->first;
+    for (XMLSize_t i = 0; i < l->getLength(); ++i) {
+        DOMNode* event = l->item(i);
+        assert(event);
+        if (event->getNodeType() != DOMNode::ELEMENT_NODE) { continue; }
+
+        list<DOMNode*> fl = xml::get_children_by_tag(event, "filter");
+        DOMNamedNodeMap* attributes = event->getAttributes();
+        assert(attributes);
+        string event_name = xml::to_string
+            ((static_cast<DOMAttr*>
+              (attributes->getNamedItem(XMLString::transcode("name"))))->
+             getTextContent());
+
         int order = 0;
-        json_array::iterator li;
-        json_array* compList = (json_array*) event_di->second->object;
-        // for every filter under the event
-	EventFilterChain chain;
-        for(li=compList->begin(); li!=compList->end(); ++li) {
-            // add the filter in the event's filter_chain
-            string filter = (((json_object*)*li)->get_string(true));
+
+        EventFilterChain chain;
+        for (list<DOMNode*>::iterator j = fl.begin(); j != fl.end(); ++j) {
+            string filter = xml::to_string((*j)->getTextContent());
             chain[filter] = order++;
         }
-	filter_chains[event_name] = chain;
+
+        filter_chains[event_name] = chain;
     }
 
     // Register the system events
@@ -92,24 +96,16 @@ EventDispatcherComponent::EventDispatcherComponent(const Context* c,
     register_event<Shutdown_event>();
     register_event<Bootstrap_complete_event>();
     register_event<Flow_stats_in_event>();
-    register_event<Queue_stats_in_event>();
-    register_event<Queue_config_in_event>();
     register_event<Table_stats_in_event>();
-    register_event<Ofmp_config_update_event>();
-    register_event<Ofmp_config_update_ack_event>();
-    register_event<Ofmp_resources_update_event>();
     register_event<Port_stats_in_event>();
     register_event<Aggregate_stats_in_event>();
     register_event<Desc_stats_in_event>();
-    register_event<Switch_mgr_join_event>();
-    register_event<Switch_mgr_leave_event>();
-    register_event<Barrier_reply_event>();
     register_event<Openflow_msg_event>();
 }
 
 Component*
 EventDispatcherComponent::instantiate(const Context* ctxt, 
-                                      const json_object* platform_conf) {
+                                      const xercesc::DOMNode* platform_conf) {
     return new EventDispatcherComponent(ctxt, platform_conf);
 }
 

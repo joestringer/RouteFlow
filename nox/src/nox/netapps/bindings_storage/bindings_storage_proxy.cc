@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -35,11 +35,12 @@ namespace applications {
 Bindings_Storage_Proxy::Bindings_Storage_Proxy(PyObject* ctxt)
     : b_store(0)
 {
-    if (!SWIG_Python_GetSwigThis(ctxt) || !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+    if (!swigo || !swigo->ptr) {
         throw runtime_error("Unable to access Python context.");
     }
 
-    c = ((PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr)->c;
+    c = ((PyContext*)swigo->ptr)->c;
 }
 
 void
@@ -137,22 +138,6 @@ Bindings_Storage_Proxy::get_names(const storage::Query &query, bool loc_tuples,
                                           b_store, query, loc_tuples, _1), cb);
 }
 
-PyObject*
-Bindings_Storage_Proxy::get_host_users(int64_t hostname,
-                                       PyObject *cb)
-{
-    return get_names_dispatch(boost::bind(&Bindings_Storage::get_host_users,
-                                          b_store, hostname, _1), cb);
-}
-
-PyObject*
-Bindings_Storage_Proxy::get_user_hosts(int64_t username,
-                                       PyObject *cb)
-{
-    return get_names_dispatch(boost::bind(&Bindings_Storage::get_user_hosts,
-                                          b_store, username, _1), cb);
-}
-
 PyObject *
 Bindings_Storage_Proxy::get_all_names(int name_type, PyObject *cb)
 {
@@ -170,7 +155,7 @@ Bindings_Storage_Proxy::get_entities_callback(const EntityList &entity_list,
 }
 
 PyObject*
-Bindings_Storage_Proxy::get_entities_by_name(int64_t name,
+Bindings_Storage_Proxy::get_entities_by_name(string name,
                                              int name_type,
                                              PyObject *cb)
 {
@@ -265,7 +250,7 @@ Bindings_Storage_Proxy::get_names_for_location(const datapathid &dpid, uint16_t 
 }
 
 PyObject*
-Bindings_Storage_Proxy::get_location_by_name(int64_t name,
+Bindings_Storage_Proxy::get_location_by_name(string name,
                                              int name_type, PyObject *cb)
 {
     return get_location_dispatch(boost::bind(

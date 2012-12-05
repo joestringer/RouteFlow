@@ -35,7 +35,7 @@ namespace vigil {
 static Vlog_module log("pcap");
 
 Pcapreader::Pcapreader(const std::string& in_file_, const std::string& out_file_, bool use_delay_)
-    : in_file(in_file_), out_file(out_file_), pc(0), pd(0), hs_done(false), hello_rdy(false), use_delay(use_delay_), delayed_pcap_data(NULL) 
+    : in_file(in_file_), out_file(out_file_), pc(0), pd(0), hs_done(false), use_delay(use_delay_), delayed_pcap_data(NULL)
 {
     char pcerr[PCAP_ERRBUF_SIZE];
 
@@ -117,17 +117,7 @@ int Pcapreader::do_send_openflow(const ofp_header* oh)
         next = b;
         hs_done = true;
     } else if (oh->type == OFPT_SET_CONFIG) {
-        log.dbg("received SET_CONFIG\n");
         /* We ignore request to set the switch configuration */
-    } else if (oh->type == OFPT_HELLO) {
-        log.dbg("received HELLO\n");
-        next.reset(new Array_buffer(sizeof(ofp_header)));
-        ofp_header* hello =  &next->at<ofp_header>(0) ;
-        hello->version = OFP_VERSION;
-        hello->type    = OFPT_HELLO;
-        hello->length  = htons(sizeof(ofp_header));
-        hello->xid = 0;
-        hello_rdy  = true;
     } else {
         if (pd) {
             if (oh->type == OFPT_PACKET_OUT) {
@@ -154,15 +144,6 @@ int Pcapreader::do_send_openflow(const ofp_header* oh)
 
 std::auto_ptr<Buffer> Pcapreader::do_recv_openflow(int& error)
 {
-    // -- wait for controller hello before sending
-    if(hello_rdy){
-        if (next.get()) {
-            log.dbg("\'receiving\' HELLO\n");
-            error = 0;
-            return next;
-        }
-    }
-
     // Until the feature request has been received, we don't want to read 
     // from the file (as per the openflow protocol)
     if (! hs_done){

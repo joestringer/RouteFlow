@@ -70,13 +70,6 @@ struct cidr_ipaddr
         }
     }
 
-    %extend {
-        unsigned int __hash__() {
-            //is hashing CIDRs into 32 bits a well studied problem?
-            return self->addr;
-        }
-    }
-
 }; // -- struct cidr_ipaddr
 
 %newobject create_cidr_ipaddr;
@@ -92,7 +85,3 @@ struct cidr_ipaddr
 %}
 
 cidr_ipaddr *create_cidr_ipaddr(const char *ip);
-
-%include "std_list.i"
-
-%template(cidrlist) std::list<cidr_ipaddr>;

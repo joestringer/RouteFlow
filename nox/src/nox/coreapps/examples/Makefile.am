@@ -1,9 +1,7 @@
 include ../../../Make.vars 
 
-SUBDIRS = t
-
 EXTRA_DIST =\
-	meta.json\
+	meta.xml\
 	__init__.py\
 	packetdump.py\
 	pyswitch.py\
@@ -12,7 +10,7 @@ EXTRA_DIST =\
 	countdown.py\
 	dnsspy.py
 
-NOX_RUNTIMEFILES = meta.json	\
+NOX_RUNTIMEFILES = meta.xml	\
 	__init__.py		\
 	packetdump.py\
 	pyswitch.py\

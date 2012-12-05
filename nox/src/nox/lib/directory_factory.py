@@ -34,23 +34,21 @@ class Directory_Factory:
     READ_WRITE_SUPPORT = 'RW'
 
     # Principal types
-    SWITCH_PRINCIPAL       = 0
-    LOCATION_PRINCIPAL     = 1
-    HOST_PRINCIPAL         = 2
-    USER_PRINCIPAL         = 3
-    HOST_NETNAME_PRINCIPAL = 4
+    SWITCH_PRINCIPAL   = 0
+    LOCATION_PRINCIPAL = 1
+    HOST_PRINCIPAL     = 2
+    USER_PRINCIPAL     = 3
 
     ALL_PRINCIPAL_TYPES = (
             SWITCH_PRINCIPAL, LOCATION_PRINCIPAL,
-            HOST_PRINCIPAL, USER_PRINCIPAL, HOST_NETNAME_PRINCIPAL
+            HOST_PRINCIPAL, USER_PRINCIPAL,
     )
 
     PRINCIPAL_TYPE_TO_NAME = {
-        SWITCH_PRINCIPAL       : "switch principal",
-        LOCATION_PRINCIPAL     : "location principal",
-        HOST_PRINCIPAL         : "host principal",
-        USER_PRINCIPAL         : "user principal",
-        HOST_NETNAME_PRINCIPAL : "host netname principal",
+        SWITCH_PRINCIPAL   : "switch principal",
+        LOCATION_PRINCIPAL : "location principal",
+        HOST_PRINCIPAL     : "host principal",
+        USER_PRINCIPAL     : "user principal",
     }
 
     # Group types
@@ -60,12 +58,11 @@ class Directory_Factory:
     USER_PRINCIPAL_GROUP     = 3
     DLADDR_GROUP             = 4
     NWADDR_GROUP             = 5
-    HOST_NETNAME_GROUP       = 6
 
     ALL_GROUP_TYPES = (
             SWITCH_PRINCIPAL_GROUP, LOCATION_PRINCIPAL_GROUP,
             HOST_PRINCIPAL_GROUP, USER_PRINCIPAL_GROUP,
-            DLADDR_GROUP, NWADDR_GROUP, HOST_NETNAME_GROUP,
+            DLADDR_GROUP, NWADDR_GROUP,
     )
 
     GROUP_TYPE_TO_NAME = {
@@ -75,7 +72,6 @@ class Directory_Factory:
         USER_PRINCIPAL_GROUP     : "user principal group",
         DLADDR_GROUP             : "datalink address group",
         NWADDR_GROUP             : "network address group",
-        HOST_NETNAME_GROUP       : "network binding group",
     }
 
     PRINCIPAL_GROUP_TO_PRINCIPAL = {
@@ -83,15 +79,13 @@ class Directory_Factory:
         LOCATION_PRINCIPAL_GROUP : LOCATION_PRINCIPAL,
         HOST_PRINCIPAL_GROUP     : HOST_PRINCIPAL,
         USER_PRINCIPAL_GROUP     : USER_PRINCIPAL,
-        HOST_NETNAME_GROUP       : HOST_NETNAME_PRINCIPAL,
     }
         
     PRINCIPAL_TO_PRINCIPAL_GROUP = {
-        SWITCH_PRINCIPAL       : SWITCH_PRINCIPAL_GROUP,
-        LOCATION_PRINCIPAL     : LOCATION_PRINCIPAL_GROUP,
-        HOST_PRINCIPAL         : HOST_PRINCIPAL_GROUP,
-        USER_PRINCIPAL         : USER_PRINCIPAL_GROUP,
-        HOST_NETNAME_PRINCIPAL : HOST_NETNAME_GROUP,
+        SWITCH_PRINCIPAL   : SWITCH_PRINCIPAL_GROUP,
+        LOCATION_PRINCIPAL : LOCATION_PRINCIPAL_GROUP,
+        HOST_PRINCIPAL     : HOST_PRINCIPAL_GROUP,
+        USER_PRINCIPAL     : USER_PRINCIPAL_GROUP,
     }
         
     def get_type(self): 
@@ -154,8 +148,6 @@ class Directory_Factory:
             return self.hosts_supported()
         elif principal_type == self.USER_PRINCIPAL:
             return self.users_supported()
-        elif principal_type == self.HOST_NETNAME_PRINCIPAL:
-            return self.host_netnames_supported()
         else:
             return Directory.NO_SUPPORT
 
@@ -178,8 +170,6 @@ class Directory_Factory:
             return self.dladdr_groups_supported()
         elif group_type == self.NWADDR_GROUP:
             return self.nwaddr_groups_supported()
-        elif group_type == self.HOST_NETNAME_GROUP:
-            return self.host_netname_groups_supported()
         else:
             return Directory.NO_SUPPORT
 
@@ -244,19 +234,6 @@ class Directory_Factory:
         return Directory_Factory.NO_SUPPORT
 
     def nwaddr_groups_supported(self):
-        """Returns one of NO_SUPPORT, READ_ONLY_SUPPORT, or READ_WRITE_SUPPORT
-           depending on the capabilities of the directory.
-        """
-        return Directory_Factory.NO_SUPPORT
-
-    def host_netnames_supported(self):
-        """Returns one of NO_SUPPORT, READ_ONLY_SUPPORT, or READ_WRITE_SUPPORT
-           depending on the capabilities of the directory.
-        """
-        #host_netnames are really just a reflection of hosts
-        return self.hosts_supported()
-
-    def host_netname_groups_supported(self):
         """Returns one of NO_SUPPORT, READ_ONLY_SUPPORT, or READ_WRITE_SUPPORT
            depending on the capabilities of the directory.
         """

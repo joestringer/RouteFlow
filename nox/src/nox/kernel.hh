@@ -20,11 +20,11 @@
 
 #include <list>
 #include <string>
-#include <vector>
 
 #include <boost/function.hpp>
 
 #include "component.hh"
+#include "hash.hh"
 #include "hash_map.hh"
 #include "hash_set.hh"
 
@@ -56,11 +56,10 @@ class Component_context;
 class Deployer;
 
 typedef std::list<Component_context*> Component_context_list;
-typedef std::list<Deployer*> Deployer_list;
 typedef hash_map<container::Component_name, 
                  Component_context*> Component_name_context_map;
-typedef std::vector<Component_context*> Component_context_vector;
-typedef hash_map<int, Component_context_vector*> 
+typedef hash_set<Component_context*> Component_context_set;
+typedef hash_map<int, Component_context_set>
 Component_state_context_set_map;
 
 class state_change_error 
@@ -92,9 +91,6 @@ public:
     /* Attach a deployer to be used if an unknown component is asked
        to be installed. */
     void attach_deployer(Deployer*);
-
-    /* Get deployers */
-    Deployer_list get_deployers() const;
 
     /* Retrieve a component context. Return 0 if no such component
        context known. Note this guarantees nothing about the state of
@@ -154,12 +150,12 @@ private:
 
     /* Attempt to resolve dependencies of a given set of contexts to
        next state. */
-    Component_context_vector resolve(const Component_context_vector&,
-                                     const Component_state to);
+    Component_context_set resolve(const Component_context_set&,
+                                  const Component_state to);
 
     /* Deployers to try if a new component context needs to be
        created. */
-    Deployer_list deployers;
+    std::list<Deployer*> deployers;
 
     /* Every context */
     Component_name_context_map contexts;
@@ -213,9 +209,7 @@ public:
 
     /* Get a human readable error message about the dependency failure
        (if any). */
-    virtual std::string get_error_message(Kernel*,
-                                          hash_set<Component_context*>)
-        const = 0;
+    virtual std::string get_error_message(Kernel*) const = 0;
 };
 
 /* A basic name dependency is met only when the given component has
@@ -226,7 +220,7 @@ public:
     Name_dependency(const container::Component_name&);
     bool resolve(Kernel*, const Component_state);
     std::string get_status(Kernel*) const;
-    std::string get_error_message(Kernel*, hash_set<Component_context*>) const;
+    std::string get_error_message(Kernel*) const;
 
 private:
     const container::Component_name name;
@@ -258,7 +252,7 @@ public:
 
     /* Return a human-readable status report. */
     std::string get_status() const;
-    std::string get_error_message(hash_set<Component_context*>) const;
+    std::string get_error_message() const;
 
     /* Public container::Context methods to be provided for components. */
     container::Component_name get_name() const;
@@ -285,8 +279,8 @@ protected:
     /* If has been instantianted, the actual component instance */
     container::Component* component;
 
-    /* Component description, typically loaded from disk */
-    json_object* json_description;
+    /* Component XML description, typically loaded from disk */
+    xercesc::DOMNode* xml_description;
 
     /* Configuration merging the static XML component description and
        dynamic runtime-configuration */
@@ -305,5 +299,22 @@ protected:
 };
 
 }
+
+/* G++ 4.2+ has hash template specializations in std::tr1, while G++
+   before 4.2 expects them to be in __gnu_cxx.  Hence the namespace
+   macro magic. */
+ENTER_HASH_NAMESPACE
+
+template<>
+struct hash<vigil::Component_state>
+    : public std::unary_function<vigil::Component_state, std::size_t>
+{
+    std::size_t
+    operator()(const vigil::Component_state state) const {
+        return (std::size_t)state;
+    }
+};
+
+EXIT_HASH_NAMESPACE
 
 #endif 

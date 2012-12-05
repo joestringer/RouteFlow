@@ -35,11 +35,12 @@ namespace applications {
 
 cswitchstats_proxy::cswitchstats_proxy(PyObject* ctxt)
 {
-    if (!SWIG_Python_GetSwigThis(ctxt) || !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+    if (!swigo || !swigo->ptr) {
         throw runtime_error("Unable to access Python context.");
     }
     
-    c = ((PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr)->c;
+    c = ((PyContext*)swigo->ptr)->c;
 }
 
 void

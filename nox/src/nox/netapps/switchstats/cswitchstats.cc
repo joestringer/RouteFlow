@@ -21,9 +21,7 @@
 #include <boost/bind.hpp>
 #include <iostream>
 
-#include "openflow.hh"
 #include "packet-in.hh"
-#include "port-status.hh"
 #include "datapath-join.hh"
 #include "datapath-leave.hh"
 #include "assert.hh"
@@ -37,7 +35,7 @@ using namespace vigil::container;
 static Vlog_module lg("cswitchstats");
 
 CSwitchStats::CSwitchStats(const Context* c,
-                   const json_object*)
+                   const xercesc::DOMNode*)
     : Component(c) 
 {
 }
@@ -54,7 +52,6 @@ CSwitchStats::test_print_averages()
     timeval tv = { 1, 0 };
     post(boost::bind(&CSwitchStats::test_print_averages, this), tv);
 }
-
 void
 CSwitchStats::configure(const Configuration*)
 {
@@ -64,8 +61,7 @@ CSwitchStats::configure(const Configuration*)
         (boost::bind(&CSwitchStats::handle_data_leave, this, _1));
     register_handler<Packet_in_event>
         (boost::bind(&CSwitchStats::handle_packet_in, this, _1));
-    register_handler<Port_status_event>
-        (boost::bind(&CSwitchStats::handle_port_status, this, _1));
+
 
     // For testing
     // -- timeval tv = { 1, 0 };
@@ -79,11 +75,9 @@ CSwitchStats::handle_datapath_join(const Event& e)
     uint64_t dpint = dj.datapath_id.as_host();
 
     if(switch_port_map.find(dpint) != switch_port_map.end()){
-        VLOG_ERR(lg, "DP join of existing switch %"PRIu64, dpint);
-        for(hash_map<uint64_t, hash_map<uint64_t, bool>
-                >::const_iterator iter = switch_port_map.begin();
-                iter != switch_port_map.end(); ++iter){
-            tracker_map.erase(iter->first);
+        VLOG_ERR(lg, "DP join of existing switch %"PRIu64"", dpint);
+        for(int i = 0; i < switch_port_map[dpint].size(); ++i){
+            tracker_map.erase(switch_port_map[dpint][i]);
         }
         switch_port_map.erase(dpint);
     }
@@ -91,8 +85,8 @@ CSwitchStats::handle_datapath_join(const Event& e)
     for (std::vector<Port>::const_iterator iter = dj.ports.begin();
          iter != dj.ports.end(); ++iter) {
         uint64_t loc = dpint + (((uint64_t) iter->port_no) << 48);
-        switch_port_map[dpint][loc] = true;
-        tracker_map[loc].reset(TIMESLICE); // 5 second timeslices
+        switch_port_map[dpint].push_back(loc);
+        tracker_map[loc].reset(5000); // 5 second timeslices
     }
 
     return CONTINUE;
@@ -109,11 +103,9 @@ CSwitchStats::handle_data_leave(const Event& e)
         return CONTINUE;
     }
 
-    for(hash_map<uint64_t, bool>::const_iterator iter = switch_port_map[dpint].begin();
-             iter != switch_port_map[dpint].end(); ++iter){
-        tracker_map.erase(iter->first);
+    for(int i = 0; i < switch_port_map[dpint].size(); ++i){
+        tracker_map.erase(switch_port_map[dpint][i]);
     }
-
     switch_port_map.erase(dpint);
 
     return CONTINUE;
@@ -125,37 +117,11 @@ CSwitchStats::handle_packet_in(const Event& e)
     const Packet_in_event& pi = assert_cast<const Packet_in_event&>(e);
     uint64_t loc = pi.datapath_id.as_host() + (((uint64_t) pi.in_port) << 48);
     if(tracker_map.find(loc) == tracker_map.end()){
-        VLOG_ERR(lg, "packet-in from non-existent location %"PRIx64"", loc);
+        VLOG_ERR(lg, "packet-in from non-existent location %"PRIu64"", loc);
         return CONTINUE;
     }
     
     tracker_map[loc].add_event(1);
-
-    return CONTINUE;
-}
-
-Disposition
-CSwitchStats::handle_port_status(const Event& e)
-{
-    const Port_status_event& ps = assert_cast<const Port_status_event&>(e);
-    uint64_t dpid = ps.datapath_id.as_host();
-
-    if (switch_port_map.find(dpid) == switch_port_map.end()){
-        VLOG_ERR(lg, "(handle_port_stats) received port status from untracked %"PRIu64, dpid);
-        return CONTINUE;
-    }
-
-    if (ps.reason == OFPPR_ADD){
-        uint64_t loc = dpid + (((uint64_t) ps.port.port_no) << 48);
-        VLOG_DBG(lg, "(handle_port_stats) adding loc %"PRIu64, loc);
-        tracker_map[loc].reset(TIMESLICE); // 5 second timeslices
-        switch_port_map[dpid][loc] = true;
-    }else if (ps.reason == OFPPR_DELETE){
-        uint64_t loc = dpid + (((uint64_t) ps.port.port_no) << 48);
-        VLOG_DBG(lg, "(handle_port_stats) deleting loc %"PRIu64, loc);
-        tracker_map.erase(loc);
-        switch_port_map[dpid].erase(loc);
-    }
 
     return CONTINUE;
 }
@@ -165,18 +131,15 @@ CSwitchStats::get_global_conn_p_s(void)
 {
     float total = 0.;
 
-    for(hash_map<uint64_t, hash_map<uint64_t, bool>
-            >::const_iterator iter = switch_port_map.begin();
+    for (hash_map<uint64_t, std::vector<uint64_t> >::iterator iter = switch_port_map.begin();
             iter != switch_port_map.end(); ++iter){
-        for (hash_map<uint64_t, bool>::const_iterator inneriter =
-                iter->second.begin(); inneriter != iter->second.end();
-                ++inneriter) {
-            if (tracker_map.find(inneriter->first) == tracker_map.end() ) {
-                VLOG_ERR(lg, "mapped location %"PRIu64" doesn't exist", inneriter->first);
+        for (int i = 0; i < iter->second.size(); ++i){
+            if (tracker_map.find(iter->second[i]) == tracker_map.end() ) {
+                VLOG_ERR(lg, "mapped location %"PRIu64" doesn't exist", iter->second[i]);
                 continue;
             }
-            if (tracker_map[inneriter->first].get_history_q_ref().size() > 0){
-                total += tracker_map[inneriter->first].get_history_q_ref().front();
+            if (tracker_map[iter->second[i]].get_history_q_ref().size() > 0){
+                total += tracker_map[iter->second[i]].get_history_q_ref().front();
             }
         }
     }
@@ -194,16 +157,13 @@ CSwitchStats::get_switch_conn_p_s(uint64_t dpid)
         return total;
     }
 
-    for (hash_map<uint64_t, bool>::const_iterator iter = switch_port_map[dpid].begin(); 
-            iter != switch_port_map[dpid].end();
-            ++iter) {
-
-        if (tracker_map.find(iter->first) == tracker_map.end() ) {
-            VLOG_ERR(lg, "mapped location %"PRIu64" doesn't exist", iter->first); 
+    for (int i = 0; i < switch_port_map[dpid].size(); ++i){
+        if (tracker_map.find(switch_port_map[dpid][i]) == tracker_map.end() ) {
+            VLOG_ERR(lg, "mapped location %"PRIu64" doesn't exist", switch_port_map[dpid][i]);
             continue;
         }
-        if (tracker_map[iter->first].get_history_q_ref().size() > 0){
-            total += tracker_map[iter->first].get_history_q_ref().front();
+        if (tracker_map[switch_port_map[dpid][i]].get_history_q_ref().size() > 0){
+            total += tracker_map[switch_port_map[dpid][i]].get_history_q_ref().front();
         }
     }
 
@@ -230,6 +190,7 @@ CSwitchStats::getInstance(const container::Context* ctxt, CSwitchStats*& scpa) {
         (ctxt->get_by_interface(container::Interface_description
                                 (typeid(CSwitchStats).name())));
 }
+
 
 REGISTER_COMPONENT(vigil::container::Simple_component_factory<CSwitchStats>,
                    CSwitchStats);

@@ -20,6 +20,8 @@
 
 #include <Python.h>
 
+#include <xercesc/dom/DOM.hpp>
+
 #include "component.hh"
 
 namespace vigil {
@@ -32,7 +34,7 @@ namespace applications {
 class PyComponent
     : public container::Component {
 public:
-    PyComponent(const container::Context*, const json_object*);
+    PyComponent(const container::Context*, const xercesc::DOMNode*);
     PyComponent(const container::Context*, PyObject*);
     ~PyComponent();
 

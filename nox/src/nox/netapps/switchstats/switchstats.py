@@ -1,4 +1,4 @@
-# Copyright 2008, 2009 (C) Nicira, Inc.
+# Copyright 2008 (C) Nicira, Inc.
 # 
 # This file is part of NOX.
 # 
@@ -18,13 +18,15 @@
 import logging
 from nox.lib.core import *
 
-from collections import defaultdict
-
 import nox.lib.openflow as openflow
 from nox.lib.packet.packet_utils  import mac_to_str
 
-from nox.lib.netinet.netinet import datapathid,create_ipaddr,c_htonl
+from nox.lib.netinet.netinet import datapathid
 from nox.netapps.switchstats.pycswitchstats import pycswitchstats
+from nox.netapps.bindings_storage.pybindings_storage import pybindings_storage,Name
+from nox.netapps.directory.pynetinfo_mod_event import NetInfo_mod_event
+from nox.netapps.directory.directorymanager import directorymanager
+from nox.netapps.directory.directorymanager import get_default_loc_name
 from twisted.python import log
 
 from nox.lib.directory import Directory
@@ -39,42 +41,11 @@ DEFAULT_POLL_AGGREGATE_PERIOD = 5
 
 lg = logging.getLogger('switchstats')
 
-
-## \ingroup noxcomponents
-# Collects and maintains switch and port stats for the network.  
-#
-# Monitors switch and port stats by sending out port_stats requests
-# periodically to all connected switches.  
-#
-# The primary method of accessing the ports stats is through the
-# webserver (see switchstatsws.py)  however, components can also
-# register port listeners which are called each time stats are
-# received for a particular port.
-#
-
 class switchstats(Component):
     """Track switch statistics during runtime"""
-    
-    def add_port_listener(self, dpid, port, listener):
-        self.port_listeners[dpid][port].append(listener)
-    def remove_port_listener(self, dpid, port, listener):
-        try:
-            self.port_listeners[dpid][port].remove(listener)
-        except Exception, e: 
-            lg.warn('Failed to remove port %d from dpid %d' %(port, dpid))
-            pass
-
-    def fire_port_listeners(self, dpid, portno, port):        
-        for listener in self.port_listeners[dpid][portno]:
-            if not listener(port):
-                self.remove_port_listener(dpid, portno, listener)
 
     def __init__(self, ctxt):
         Component.__init__(self, ctxt)
-
-        # {dpid : {port : [listeners]}}
-        self.port_listeners = defaultdict(lambda: defaultdict(list)) 
-
         self.dp_stats = {} 
 
         self.dp_poll_period = {}
@@ -98,7 +69,7 @@ class switchstats(Component):
         dpid_obj = datapathid.from_host(dp)
         stats['dpid']     = dp 
         self.dp_stats[dp] = stats
-       
+
         # convert all port hw_addrs to ASCII
         # and register all port names with bindings storage
    
@@ -141,8 +112,6 @@ class switchstats(Component):
             del self.dp_desc_stats[dp]  
         if self.dp_port_stats.has_key(dp):
             del self.dp_port_stats[dp]  
-        if dp in self.port_listeners:    
-            del self.port_listeners[dp]
 
         return CONTINUE
 
@@ -158,9 +127,6 @@ class switchstats(Component):
 
     def desc_stats_in_handler(self, dpid, desc):
         self.dp_desc_stats[dpid] = desc
-        ip = self.ctxt.get_switch_ip(dpid)
-        self.dp_desc_stats[dpid]["ip"] = str(create_ipaddr(c_htonl(ip)))
-
 
     def port_stats_in_handler(self, dpid, ports):
         if dpid not in self.dp_port_stats:
@@ -179,8 +145,6 @@ class switchstats(Component):
             else:    
                 port['delta_bytes'] = 0 
                 new_ports[port['port_no']] = port
-            # XXX Fire listeners for port stats    
-            self.fire_port_listeners(dpid, port['port_no'], port)
         self.dp_port_stats[dpid] = new_ports 
 
 
@@ -215,8 +179,7 @@ class switchstats(Component):
         for dpid in self.dp_port_stats:
             ports = self.dp_port_stats[dpid].values()
             for port in ports:
-                error_list.append((dpid, port['port_no'], 
-                  (port['delta_bytes']) / DEFAULT_POLL_PORT_PERIOD))
+                error_list.append((dpid, port['port_no'], port['delta_bytes']))
         return error_list    
             
     def get_global_conn_p_s(self):
@@ -227,6 +190,9 @@ class switchstats(Component):
 
     def install(self):
         self.cswitchstats     = self.resolve(pycswitchstats)
+        self.bindings_storage = self.resolve(pybindings_storage)
+
+        self.dm = self.resolve(directorymanager)
 
         self.register_for_datapath_join (self.dp_join)
         self.register_for_datapath_leave(self.dp_leave)

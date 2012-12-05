@@ -26,14 +26,6 @@
 // full network API.
 // ------------------------------------------------------------
 
-/** \defgroup noxapi NOX API
- *
- * These classes and functions provides the basic APIs in NOX.
- * These basic functionalities are supported by NOX's core,
- * which form the basics for the functionalities added by components.
- */
-
-
 #ifndef nox_HH__ 
 #define nox_HH__
 
@@ -46,7 +38,6 @@
 #include "packet-classifier.hh"
 #include "timer-dispatcher.hh"
 #include "switch_auth.hh" 
-#include "switch-mgr.hh" 
 
 namespace vigil
 {
@@ -61,9 +52,6 @@ namespace nox {
 typedef boost::function<void()> Callback;
 
 void init();
-
-/* Get a reference to the main poll loop. */
-Poll_loop* get_poll_loop();
 
 void connect(Openflow_connection_factory*, bool reliable);
 void register_conn(Openflow_connection*, Co_sema*);
@@ -96,10 +84,6 @@ Timer post_timer(const Callback& callback);
 Timer post_timer(const Callback& callback, const timeval& duration);
 void timer_debug();
 
-boost::shared_ptr<Switch_mgr> mgmtid_to_swm(datapathid mgmt_id);
-datapathid dpid_to_mgmtid(datapathid dpid);
-bool active_mgmt(const datapathid& mgmtid);
-
 uint32_t allocate_openflow_xid();
 int send_openflow_command(const datapathid&, const ofp_header* oh,
                           bool block);
@@ -129,8 +113,6 @@ int send_add_snat(const datapathid &dpid, uint16_t port,
                     ethernetaddr mac_addr, 
                     uint16_t mac_timeout=0);
 int send_del_snat(const datapathid &dpid, uint16_t port);
-uint32_t get_switch_controller_ip(const datapathid &dpid);
-uint32_t get_switch_ip(const datapathid &dpid);
 
 int fetch_switch_logs(datapathid, const std::string& output_file,
                       const boost::function<void(int error,

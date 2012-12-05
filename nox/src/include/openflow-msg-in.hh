@@ -23,49 +23,25 @@
 #include "event.hh"
 #include "netinet++/datapathid.hh"
 #include "ofp-msg-event.hh"
+
 #include "openflow/openflow.h"
 
-namespace vigil 
-{
+namespace vigil {
 
-  /** \ingroup noxevents
-   * \brief OpenFlow message event
-   *
-   * Allows all OpenFlow messages to be exposed to components
-   * as events.  This is useful for vendor extensions and so on.
-   *
-   * @author ykk
-   * @date 2008
-   */
-  struct Openflow_msg_event
+struct Openflow_msg_event
     : public Event,
       public Ofp_msg_event
-  {
-    /** \brief Constructor
-     * 
-     * @param dpid datapath associated with message
-     * @param of_msg_ header pointer to message
-     * @param buf buffer containing message
-     */
+{
     Openflow_msg_event(const datapathid& dpid, const ofp_header* ofp_msg_,
 		       std::auto_ptr<Buffer> buf);
 
-    /** \brief Empty constructor.
-     *
-     *  Only for use within python
-     */
+    // -- only for use within python
     Openflow_msg_event() : Event(static_get_name()) { }
 
-    /** \brief Return static name for event.
-     *
-     * @return unique string naming event
-     */
     static const Event_name static_get_name() {
         return "Openflow_msg_event";
     }
 
-    /** Datapath message is from.
-     */
     datapathid datapath_id;
 }; 
 
@@ -78,4 +54,5 @@ Openflow_msg_event::Openflow_msg_event(const datapathid& dpid, const ofp_header*
 }
 
 } // namespace vigil
+
 #endif

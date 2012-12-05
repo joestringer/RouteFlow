@@ -16,7 +16,6 @@
  * along with NOX.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "routing.hh"
-#include "openflow-default.hh"
 
 #include <boost/bind.hpp>
 #include <inttypes.h>
@@ -24,7 +23,7 @@
 #include "assert.hh"
 #include "openflow/nicira-ext.h"
 #include "vlog.hh"
-#include "openflow-pack.hh"
+#include "openflow-default.hh"
 
 namespace vigil {
 namespace applications {
@@ -91,11 +90,12 @@ get_max_action_len() {
 // Constructor - initializes openflow packet memory used to setup route
 
 Routing_module::Routing_module(const container::Context* c,
-                               const json_object* d)
+                               const xercesc::DOMNode* d)
     : container::Component(c), topology(0), nat(0), len_flow_actions(0),
       num_actions(0), ofm(0)
 {
     max_output_action_len = get_max_action_len();
+    xidcounter = 0;
 }
 
 void
@@ -569,14 +569,14 @@ Routing_module::init_openflow(uint16_t actions_len)
 
     ofm->header.version = OFP_VERSION;
     ofm->header.type = OFPT_FLOW_MOD;
-    ofm->header.xid = openflow_pack::get_xid();
+    ofm->header.xid = ++xidcounter;
 
     ofm->match.wildcards = 0;
     memset(&ofm->match.pad1, 0, sizeof(ofm->match.pad1));
     memset(&ofm->match.pad2, 0, sizeof(ofm->match.pad2));
-    ofm->cookie = 0;
     ofm->command = htons(OFPFC_ADD);
     ofm->priority = htons(OFP_DEFAULT_PRIORITY);
+    ofm->cookie = htonl(0);
     ofm->flags = htons(ofd_flow_mod_flags());
 }
 
@@ -702,10 +702,8 @@ Routing_module::setup_flow(const Flow& flow, const datapathid& dp,
                            uint16_t outport, uint32_t bid, const Buffer& buf,
                            uint16_t flow_timeout, const Buffer& actions,
                            bool check_nat,
-                           const GroupList *sdladdr_groups,
-                           const GroupList *snwaddr_groups,
-                           const GroupList *ddladdr_groups,
-                           const GroupList *dnwaddr_groups)
+                           const std::vector<uint32_t> *saddr_groups,
+                           const std::vector<uint32_t> *daddr_groups)
 {
     uint32_t inport = ntohs(flow.in_port);
     uint16_t actions_len = actions.size();
@@ -720,8 +718,7 @@ Routing_module::setup_flow(const Flow& flow, const datapathid& dp,
         set_action((uint8_t*)ofm->actions + actions_len, dp, outport,
                    actions_len, false, false, 0, nat_overwritten);
     } else {
-        nat->get_nat_locations(&flow, sdladdr_groups, snwaddr_groups,
-                               ddladdr_groups, dnwaddr_groups, nat_flow);
+        nat->get_nat_locations(&flow, saddr_groups, daddr_groups, nat_flow);
         bool allow_overwrite = !flow.dl_dst.is_multicast();
         if (outport == OFPP_FLOOD) {
             uint64_t orig_dl = flow.dl_dst.hb_long();
@@ -775,10 +772,8 @@ Routing_module::setup_route(const Flow& flow, const Route& route,
                             uint16_t ap_inport, uint16_t ap_outport,
                             uint16_t flow_timeout, const ActionList& actions,
                             bool check_nat,
-                            const GroupList *sdladdr_groups,
-                            const GroupList *snwaddr_groups,
-                            const GroupList *ddladdr_groups,
-                            const GroupList *dnwaddr_groups)
+                            const std::vector<uint32_t> *saddr_groups,
+                            const std::vector<uint32_t> *daddr_groups)
 {
     if (lg.is_dbg_enabled()) {
         os << flow;
@@ -802,8 +797,7 @@ Routing_module::setup_route(const Flow& flow, const Route& route,
     uint16_t outport, inport = ap_inport;
     bool nat_match = false;
     if (check_nat) {
-        nat->get_nat_locations(&flow, sdladdr_groups, snwaddr_groups,
-                               ddladdr_groups, dnwaddr_groups, nat_flow);
+        nat->get_nat_locations(&flow, saddr_groups, daddr_groups, nat_flow);
     }
     while (true) {
         if (link == route.path.end()) {
@@ -916,10 +910,8 @@ Routing_module::send_packet(const datapathid& dp, uint16_t inport, uint16_t outp
                             uint32_t bid, const Buffer& buf,
                             const Buffer& actions,
                             bool check_nat, const Flow& flow,
-                            const GroupList *sdladdr_groups,
-                            const GroupList *snwaddr_groups,
-                            const GroupList *ddladdr_groups,
-                            const GroupList *dnwaddr_groups)
+                            const std::vector<uint32_t> *saddr_groups,
+                            const std::vector<uint32_t> *daddr_groups)
 {
     uint16_t actions_len = actions.size();
     uint64_t overwrite = 0;
@@ -932,8 +924,7 @@ Routing_module::send_packet(const datapathid& dp, uint16_t inport, uint16_t outp
         set_action(((uint8_t*)ofm->actions) + actions_len, dp, outport,
                    actions_len, false, false, 0, nat_overwritten);
     } else {
-        nat->get_nat_locations(&flow, sdladdr_groups, snwaddr_groups,
-                               ddladdr_groups, dnwaddr_groups, nat_flow);
+        nat->get_nat_locations(&flow, saddr_groups, daddr_groups, nat_flow);
         bool allow_overwrite = !flow.dl_dst.is_multicast();
         if (outport == OFPP_FLOOD) {
             const Topology::DpInfo& dpinfo = topology->get_dpinfo(dp);

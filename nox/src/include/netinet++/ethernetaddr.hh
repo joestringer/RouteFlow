@@ -39,6 +39,7 @@
 #ifndef ETHERNETADDR_HH
 #define ETHERNETADDR_HH
 
+#include <cstdio>
 #include "config.h"
 #include <stdexcept>
 #include <ostream>
@@ -49,7 +50,6 @@
 #include <netinet/in.h>
 #include <stdint.h>
 #include "xtoxll.h"
-#include "hash_map.hh" // hash fn defined at end of file
 
 namespace vigil {
 
@@ -96,7 +96,6 @@ class bad_ethernetaddr_cast : public std::bad_cast
 //-----------------------------------------------------------------------------
 
 static const uint8_t ethbroadcast[] = "\xff\xff\xff\xff\xff\xff";
-static const uint8_t pae_multicast[] = "\x01\x80\xc2\x00\x00\x03";
 
 /* printf formatting for ethernetaddr. */
 #define EA_FMT "%02x:%02x:%02x:%02x:%02x:%02x"
@@ -182,8 +181,6 @@ struct ethernetaddr
     bool is_multicast() const;
 
     bool is_broadcast() const;
-
-    bool is_pae() const;
 
     bool is_zero() const;
 private:
@@ -444,14 +441,6 @@ bool ethernetaddr::is_broadcast() const
 
 //-----------------------------------------------------------------------------
 inline
-bool ethernetaddr::is_pae() const
-{
-    return (hb_long() == 0x0180c2000003ULL);
-}
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
-inline
 bool 
 ethernetaddr::is_zero() const
 {
@@ -470,15 +459,5 @@ operator <<(std::ostream& os,const ethernetaddr& addr_in)
 //-----------------------------------------------------------------------------
 
 }
-
-ENTER_HASH_NAMESPACE
-template <>
-struct hash<vigil::ethernetaddr> {
-    std::size_t operator() (const vigil::ethernetaddr& ena) const {
-        return HASH_NAMESPACE::hash<uint64_t>()(ena.hb_long());
-    }
-};
-EXIT_HASH_NAMESPACE
-
 
 #endif   // ETHERNETADDR_HH

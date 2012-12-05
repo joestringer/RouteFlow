@@ -19,7 +19,17 @@
 %module "nox.netapps.authenticator.pyflowutil"
 
 %{
-#include "core_events.hh"
+#include "aggregate-stats-in.hh"
+#include "bootstrap-complete.hh"
+#include "datapath-join.hh"
+#include "datapath-leave.hh"
+#include "desc-stats-in.hh"
+#include "echo-request.hh"
+#include "flow-removed.hh"
+#include "flow-mod-event.hh"
+#include "port-stats-in.hh"
+#include "table-stats-in.hh"
+#include "port-status.hh"
 #include "pyrt/pycontext.hh"
 #include "pyrt/pyevent.hh"
 #include "pyrt/pyglue.hh"
@@ -54,8 +64,6 @@ struct Flow_in_event
         const Flow_in_event& fi = dynamic_cast<const Flow_in_event&>(e);
 
         pyglue_setattr_string(proxy, "active", to_python(fi.active));
-        pyglue_setattr_string(proxy, "fn_applied", to_python(fi.fn_applied));
-        pyglue_setattr_string(proxy, "fn_name", to_python(fi.fn_name));
         pyglue_setattr_string(proxy, "received_sec", to_python(fi.received.tv_sec));
         pyglue_setattr_string(proxy, "received_usec", to_python(fi.received.tv_usec));
         pyglue_setattr_string(proxy, "datapath_id", to_python(fi.datapath_id));
@@ -65,31 +73,30 @@ struct Flow_in_event
         pyglue_setattr_string(proxy, "buffer_id", to_python(fi.buffer_id));
         pyglue_setattr_string(proxy, "reason", to_python(fi.reason));
 
-        pyglue_setattr_string(proxy, "src_host_netid", to_python(*fi.src_host_netid));
+        pyglue_setattr_string(proxy, "src_host", to_python(*fi.src_host));
         pyglue_setattr_string(proxy, "src_location", to_python(fi.src_location));
-        pyglue_setattr_string(proxy, "src_dladdr_groups", to_python_list(*fi.src_dladdr_groups));
-        pyglue_setattr_string(proxy, "src_nwaddr_groups", to_python_list(*fi.src_nwaddr_groups));
+        pyglue_setattr_string(proxy, "src_addr_groups", to_python_list(*fi.src_addr_groups));
 
         pyglue_setattr_string(proxy, "dst_authed", to_python(fi.dst_authed));
-        pyglue_setattr_string(proxy, "dst_host_netid", to_python(*fi.dst_host_netid));
+        pyglue_setattr_string(proxy, "dst_host", to_python(*fi.dst_host));
         pyglue_setattr_string(proxy, "dst_locations", to_python(fi.dst_locations));
-        pyglue_setattr_string(proxy, "dst_dladdr_groups", to_python_list(*fi.dst_dladdr_groups));
-        pyglue_setattr_string(proxy, "dst_nwaddr_groups", to_python_list(*fi.dst_nwaddr_groups));
+        pyglue_setattr_string(proxy, "dst_addr_groups", to_python_list(*fi.dst_addr_groups));
 
         pyglue_setattr_string(proxy, "route_source", route_source_to_python(fi.route_source));
         pyglue_setattr_string(proxy, "route_destinations", route_destinations_to_python(fi.route_destinations));
 
-        ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(proxy);
+        ((Event*)swigo->ptr)->operator=(e);
     }
 
     static void register_event_converter(PyObject *ctxt) {
-        if (!SWIG_Python_GetSwigThis(ctxt) || 
-            !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+        if (!swigo || !swigo->ptr) {
             throw std::runtime_error("Unable to access Python context.");
         }
         
         vigil::applications::PyContext* pyctxt = 
-            (vigil::applications::PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr;
+            (vigil::applications::PyContext*)swigo->ptr;
         pyctxt->register_event_converter<Flow_in_event>
             (&Flow_in_event_fill_python_event);
     }
@@ -106,15 +113,16 @@ public:
         LOCDST,
         HSRC,
         HDST,
-        HNETSRC,
-        HNETDST,
         USRC,
         UDST,
         CONN_ROLE,
-        GROUPSRC,
-        GROUPDST,
+        LGROUPSRC,
+        LGROUPDST,
+        HGROUPSRC,
+        HGROUPDST,
+        UGROUPSRC,
+        UGROUPDST,
         DLVLAN,
-        DLVLANPCP,
         DLSRC,
         DLDST,
         DLTYPE,
@@ -123,6 +131,8 @@ public:
         NWPROTO,
         TPSRC,
         TPDST,
+        ADDRGROUPSRC,
+        ADDRGROUPDST,
         SUBNETSRC,
         SUBNETDST,
         FUNC,
@@ -134,19 +144,11 @@ public:
         RESPONSE,
     };
 
-    enum Apply_side_t {
-        ALWAYS_APPLY,
-        APPLY_AT_SOURCE,
-        APPLY_AT_DESTINATION
-    };
-
     Flow_expr(uint32_t n_preds);
     ~Flow_expr();
     bool set_fn(PyObject *fn_);
     bool set_pred(uint32_t i, Pred_t type, uint64_t value);
-    bool set_pred(uint32_t i, Pred_t type, int64_t value);
 
-    Apply_side_t apply_side;
     uint32_t global_id;
 };
 

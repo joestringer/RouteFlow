@@ -9,22 +9,28 @@ Quick Start From Git
 For those with all the proper dependencies installed (see below) NOX can
 be configured and built using standard autoconf procedure:: 
 
+   mkdir nox
+   cd nox
+   git clone git://noxrepo.org/openflow
    git clone git://noxrepo.org/noxcore
    cd noxcore/
    ./boot.sh
    mkdir build/
    cd build/
-   ../configure 
+   ../configure --with-python=`which python2.5`
    make
    make check
 
 If building from the source tarfile, you don't need to run boot.sh.
 
-By default, NOX builds with C++ STL debugging checks, which can slow
-down execution speeds by a factor of 10.  For a production build, 
-you will want to turn this off::
+It is not absolutely necessary that you build with Python, though
+we highly recommend it.
 
-   ./configure --enable-ndebug
+By default, NOX builds with C++ STL debugging checks, which slows down
+execution speeds by at least a factor of 10.  For an optimized build,
+you'll want to turn this off::
+
+   ./configure --with-python=`which python2.5` --enable-ndebug
 
 Once compiled, the *nox_core* binary will be built in the *src/*
 directory.  **Note** that nox_core **must** be run from the *src/*
@@ -45,15 +51,15 @@ Dependencies
 ^^^^^^^^^^^^^^
 
 The NOX team's internal development environment is standardized around
-Debian's Lenny distribution (http://wiki.debian.org/DebianLenny).  While
-we test releases on other Linux distributions (Fedora, Gentoo, Ubuntu),
-FreeBSD and NetBSD, using Lenny is certain to provide the least hassle. 
+Debian unstable.  While we test releases on other Linux distributions
+(Fedora, Gentoo, Ubuntu), FreeBSD and NetBSD, using Debian unstable is
+certain to provide the least hassle.
 
 NOX relies on the following software packages.  All are available under
 Debian as apt packages. Other distributions may require them to be
 separately installed from source:
 
-* g++ 4.2 or greater
+* g++ 4.1 or greater
 * Boost C++ libraries, v1.34.1 or greater (http://www.boost.org)
 * Xerces C++ parser, v2.7.0 or greater (http://xerces.apache.org/xerces-c)
 
@@ -72,14 +78,8 @@ The user interface (web management console) requires
    Older versions of swig may have incompatibilities with newer gcc/g++
    versions.  This is known to be a problem with g++4.1 and swig v1.3.29
 
-Boot Options
-^^^^^^^^^^^^^
-
-If building directly from git, the build system needs to be
-bootstrapped.  
-
-  ./boot 
-
+You may also wish to install libpcap (http://tcpdump.org) for testing
+and debugging though it isn't strictly necessary.
 
 Configure Options
 ^^^^^^^^^^^^^^^^^^
@@ -87,56 +87,35 @@ Configure Options
 The following options are commonly used in NOX configuration.  Use
 ./configure ----help for a full listing: 
 
-``--with-python=[yes|no|/path/to/python]`` By default, NOX builds with
-an embedded Python interpreter.  You can use this option to specify
-which Python installation to use, or to build without Python support
-(by using --with-python=no).  NOX requires that the embedded python
-support twisted.
+``--with-python=[yes|no|/path/to/python]`` This will build NOX with
+support for Twisted Python bindings.  Many NOX applications require
+Twisted support and it provides the simplest API for new developers.  We
+highly recommend building NOX with Twisted for new users.
 
 ``--enable-ndebug`` This will turn *off* debugging (STL debugging in
 particular) and increase performance significantly.  Use this whenever
 running NOX operationally.
 
+``--with-openflow=/path/to/openflow`` Provide NOX with a path to the
+OpenFlow source tree.  This is only necessary to build against a
+version of OpenFlow different from that supplied with NOX.
+
 Distribution Specific Installation Notes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Debian 5.0 (Lenny):**
+**Debian unstable:**
 
-Compiling requires the following packages:: 
-
-  apt-get install autoconf automake g++ libtool python python-twisted
-  swig libboost1.35-dev libxerces-c2-dev libssl-dev make
+NOX should compile with the following packages::
   
-Running the web server requires json support in python::
-  
-  apt-get install python-simplejson
+  apt-get build-essential libsqlite3-dev install autoconf automake1.10
+  g++-4.2 gcc-4.2 libboost-dev libtool libboost-filesystem-dev
+  libpcap-dev libssl-dev make python-dev python-twisted swig
+  libxerces-c2-dev libboost-serialization-dev python-mako
+  libboost-test-dev openssl python-simplejson python-openssl
 
-To build the documentation you will need to install sphinx::
+To build from git, you will also need to install git::
 
-  apt-get install python-sphinx
-
-**Ubuntu 8.04:**
-
-Compiling requires the following packages:: 
-
-    apt-get install autoconf automake g++ libtool python python2.5-dev python-twisted
-    swig libboost-python1.34.1 libboost-python-dev libboost-serialization-dev
-    libboost-test-dev libxerces28-dev libssl-dev make
-
-Running the web server requires json support in python::
-
-    apt-get install python-simplejson
-
-**Ubuntu 9.04:**
-
-Compiling requires the following packages:: 
-
-    apt-get git-core install autoconf automake g++ libtool python python-dev 
-    python-twisted swig libssl-dev make libboost-dev libxerces-c2-dev
-
-Running the web server requires json support in python::
-
-    apt-get install python-simplejson
+  apt-get git-core
 
 **Fedora Core 9:+**
 
@@ -163,15 +142,15 @@ To build NOX (with twisted python) you'll have to installed the
 following packages from a base install::
 
   gcc gcc-c++ make libXerces-c-27 libXerces-c-devel
-  libpcap-devel libopenssl-devel swig python-devel 
-  python-twisted python-curses 
+  libpcap-devel libopenssl-devel swig sqlite-devel
+  python-devel python-twisted python-curses
 
 **Mandriva One 2008:**
 
 NOX compiled on Mandriva with the following packages installed::
 
   libboost-devel boost-1.35.0 libxerces-c-devel
-  libopenssl0.9.8-devel libpython2.5-devel
+  libopenssl0.9.8-devel libsqlite3-devel libpython2.5-devel
   python-twisted swig-devel
 
 If the swig and swig-devel packages are not available from the repository, you
@@ -200,3 +179,6 @@ As a simple example, if you've compiled with Twisted try running
 
 This should print out a description of ten identical packets,
 and then wait for you to terminate *nox_core* with 'Ctrl-c'.
+
+There currently is no simple way to test the build if it was
+not compiled with Python support, besides running it (:ref:`sec_use`).

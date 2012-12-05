@@ -6,15 +6,12 @@ async_io.hh					\
 auto_array.hh					\
 auto_fd.hh					\
 auto_free.hh					\
-barrier-reply.hh				\
 bootstrap-complete.hh				\
 buffer.hh					\
-cfg.hh					\
 classifier.hh					\
 cnode-result.hh					\
 cnode.hh					\
 command-line.hh					\
-core_events.hh					\
 datapath-join.hh				\
 datapath-leave.hh				\
 datapath.hh					\
@@ -27,8 +24,8 @@ event.hh					\
 expr.hh						\
 fault.hh					\
 flow-event.hh					\
-flow-mod-event.hh				\
 flow-removed.hh					\
+flow-mod-event.hh				\
 flow-stats-in.hh \
 flow.hh						\
 fnv_hash.hh					\
@@ -36,9 +33,6 @@ hash_func.hh					\
 hash.hh						\
 hash_map.hh					\
 hash_set.hh					\
-JSON_parser.h					\
-json_object.hh					\
-leak-checker.hh					\
 netinet++/arp.hh				\
 netinet++/bpdu.hh				\
 netinet++/cidr.hh				\
@@ -52,21 +46,11 @@ netinet++/static_lib.hh				\
 netinet++/tcp.hh				\
 netinet++/vlan.hh				\
 netlink.hh					\
-network_graph.hh				\
-ofmp-config-update-ack.hh   \
-ofmp-config-update.hh       \
-ofmp-resources-update.hh    \
 ofp-msg-event.hh				\
-openflow-action.hh				\
-openflow-pack.hh				\
-openflow-pack-raw.hh				\
 openflow-event.hh				\
 openflow-streamops.hh				\
-openflow-default.hh				\
-openflow-msg-in.hh				\
 openflow/openflow/nicira-ext.h			\
 openflow/openflow/openflow-netlink.h		\
-openflow/openflow/openflow-mgmt.h		\
 openflow/openflow/openflow.h			\
 openflow.hh					\
 packet-in.hh					\
@@ -78,12 +62,9 @@ port-stats-in.hh				\
 port-status.hh					\
 port.hh						\
 ppoll.hh					\
-queue-stats-in.hh				\
-queue-config-in.hh				\
 resolver.hh					\
 rule.hh						\
 shutdown-event.hh				\
-sha1.hh					\
 sigset.hh					\
 socket-util.hh					\
 ssl-config.hh 					\
@@ -93,9 +74,6 @@ stable_list.hh					\
 stable_map.hh					\
 string.hh					\
 switch_auth.hh               \
-switch-mgr-join.hh    \
-switch-mgr-leave.hh   \
-switch-mgr.hh         \
 table-stats-in.hh				\
 tcp-socket.hh					\
 threads/cooperative.hh				\
@@ -109,6 +87,5 @@ timeval.hh					\
 type-props.h					\
 vlog-socket.hh					\
 vlog.hh						\
-json-util.hh					\
-xtoxll.h					
-
+xml-util.hh					\
+xtoxll.h

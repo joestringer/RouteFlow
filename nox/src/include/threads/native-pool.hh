@@ -91,7 +91,10 @@ private:
         for (int i = 0; i < n_threads; ++i) {
             dead_workers.down();
         }
-       
+
+        fetch_fsm.kill();
+        inject_fsm.kill();
+
         if (async) { cb(); }
     }
 

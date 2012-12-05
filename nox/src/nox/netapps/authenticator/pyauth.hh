@@ -41,29 +41,14 @@ public:
     bool remove_internal_subnet(const cidr_ipaddr&);
     void clear_internal_subnets();
 
-    int64_t get_authed_hostname(const ethernetaddr& dladdr, uint32_t nwaddr);
-    PyObject* get_authed_locations(const ethernetaddr& dladdr,
-                                   uint32_t nwaddr);
-    PyObject* get_authed_addresses(int64_t host);
-    bool is_virtual_location(const datapathid& dp, uint16_t port);
+    uint32_t get_authed_host(const ethernetaddr& dladdr, uint32_t nwaddr);
     void get_names(const datapathid& dp, uint16_t inport,
                    const ethernetaddr& dlsrc, uint32_t nwsrc,
                    const ethernetaddr& dldst, uint32_t nwdst,
                    PyObject *callable);
 
-    void all_updated(bool poison);
-    void principal_updated(int64_t ptype, int64_t id, bool poison);
-    void groups_updated(const std::list<int64_t>& groups, bool poison);
-
-    bool is_switch_active(const datapathid& dp);
-    bool is_netid_active(int64_t netid);
-
-    int64_t get_port_number(const datapathid& dp, const std::string& port_name);
-
 private:
-    Authenticator *authenticator;
-    Datatypes     *datatypes;
-    Data_cache    *data_cache;
+    Authenticator* authenticator;
     container::Component* c;
 };
 

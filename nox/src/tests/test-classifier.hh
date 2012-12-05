@@ -139,7 +139,7 @@ Classifier_t<Expr, Action>::check_delete_rules(const Data *data)
 
     uint32_t l_del = 0;
     while (iter != linear.end()) {
-        if (matches(iter->id, iter->expr, *data)) {
+        if (matches(iter->expr, *data)) {
             iter = linear.erase(iter);
             l_del++;
         } else {
@@ -171,7 +171,7 @@ Classifier_t<Expr, Action>::check_lookup(const Data *data)
         const vigil::Rule<Expr, Action> *match = result.next();
         bool match_found = false;
         while (iter != linear.end()) {
-            if (matches(iter->id, iter->expr, *data)) {
+            if (matches(iter->expr, *data)) {
                 if (match == NULL || (match->priority != iter->priority)) {
                     return false;
                 } else if (iter->id == match->id) {
@@ -213,7 +213,7 @@ Classifier_t<Expr, Action>::resolve_priority(typename Rule_list::const_iterator&
     for (++liter; liter != linear.end() && liter->priority == match->priority;
         ++liter)
     {
-        if (matches(liter->id, liter->expr, *data)) {
+        if (matches(liter->expr, *data)) {
             ms.push_back(*liter);
         }
     }

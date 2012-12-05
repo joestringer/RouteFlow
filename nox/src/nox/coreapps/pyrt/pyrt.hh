@@ -22,6 +22,8 @@
 
 #include <boost/intrusive_ptr.hpp>
 
+#include <xercesc/dom/DOM.hpp>
+
 #include "component.hh"
 #include "deployer.hh"
 #include "threads/cooperative.hh"
@@ -64,7 +66,7 @@ class PyRt
       public Deployer,
       public Python_event_manager {
 public:
-    PyRt(const container::Context*, const json_object*);
+    PyRt(const container::Context*, const xercesc::DOMNode*);
     
     static void getInstance(const container::Context*, PyRt*&);
 
@@ -80,8 +82,8 @@ class Python_component_context
 public:
     Python_component_context(Kernel*, const container::Component_name&, 
                              const std::string& component_home_path, 
-                             json_object*);
-                             
+                             xercesc::DOMNode*);
+
     /* Actions implementing state transitions */
     void describe();
     void load();

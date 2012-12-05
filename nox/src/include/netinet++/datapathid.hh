@@ -20,7 +20,7 @@
 
 #include <inttypes.h>
 #include <string>
-#include <stdio.h>
+#include <cstdio>
 
 #include "hash_map.hh" // hash fn defined at end of file
 #include "xtoxll.h"
@@ -53,7 +53,8 @@ public:
 private:
     uint64_t id;                /* In host byte order. */
 
-    datapathid(uint64_t id_) : id(id_) { }
+    static const uint64_t mask = (UINT64_C(1) << 48) - 1;
+    datapathid(uint64_t id_) : id(id_ & mask) { }
 };
 
 inline

@@ -19,6 +19,7 @@
 #define STRING_HH 1
 
 #include <stdarg.h>
+#include <cstdio>
 #include <string>
 
 namespace vigil {

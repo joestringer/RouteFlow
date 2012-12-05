@@ -43,11 +43,12 @@ namespace applications {
 
 user_event_log_proxy::user_event_log_proxy(PyObject* ctxt) : uel(0) 
 {
-    if (!SWIG_Python_GetSwigThis(ctxt) || !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+    if (!swigo || !swigo->ptr) {
         throw runtime_error("Unable to access Python context.");
     }
     
-    c = ((PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr)->c;
+    c = ((PyContext*)swigo->ptr)->c;
 }
 
 void user_event_log_proxy::log_simple(const string &app_name, int level, 
@@ -104,8 +105,8 @@ PyObject *user_event_log_proxy::get_log_entry(int logid, PyObject *cb){
 
 void user_event_log_proxy::get_log_callback(int64_t logid, int64_t ts, 
             const string &app, 
-            int level, const string &msg, const PrincipalList &src_names, 
-            const PrincipalList &dst_names, boost::intrusive_ptr<PyObject> cb) {
+            int level, const string &msg, const NameList &src_names,
+            const NameList &dst_names, boost::intrusive_ptr<PyObject> cb) {
     Co_critical_section c;
     
     PyObject* args = PyTuple_New(7);
@@ -120,15 +121,15 @@ void user_event_log_proxy::get_log_callback(int64_t logid, int64_t ts,
     python_callback(args,cb); 
 } 
 
-PyObject * user_event_log_proxy::get_logids_for_name(int64_t id, 
-                                    int64_t type, PyObject* cb) {
+PyObject * user_event_log_proxy::get_logids_for_name(const string &name,
+                                    int name_type, PyObject* cb) {
   try {
         if (!cb || !PyCallable_Check(cb)) { throw "Invalid callback"; }
 
         boost::intrusive_ptr<PyObject> cptr(cb, true);
         Get_logids_callback f = boost::bind(
                 &user_event_log_proxy::get_logids_callback,this,_1,cptr);
-        uel->get_logids_for_name(id, (PrincipalType) type,f); 
+        uel->get_logids_for_name(name, (Name::Type) name_type,f);
         Py_RETURN_NONE;
     }
     catch (const char* msg) {

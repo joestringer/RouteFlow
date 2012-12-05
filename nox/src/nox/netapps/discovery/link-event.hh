@@ -26,14 +26,6 @@
 
 namespace vigil {
 
-/** \ingroup noxevents
- *
- * Thrown for each link status change detected on the network.
- * Currently is only thrown by the discovery component. 
- *
- */
-
-
 struct Link_event
     : public Event,
       boost::noncopyable

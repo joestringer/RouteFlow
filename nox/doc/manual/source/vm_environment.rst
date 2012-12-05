@@ -7,7 +7,7 @@ Developing and testing NOX can be cumbersome with physical switches.  An
 attractive alternative is to run NOX, OpenFlow switches and end hosts on
 the same host using virtual machines.   This distribution provides some
 utility scripts which help set up a topology of virtual switches using
-KVM or QEMU.  These instructions assume the use of debian Lenny, ymmv
+KVM or QEMU.  These instructions assume the use of debian unstable, ymmv
 with other distributions.
 
 Quickstart
@@ -411,7 +411,16 @@ long-standing tcp flow between the two hosts. Remember the flow entries
 time-out quickly though, so you may need to send additional data to
 re-create a flow entry.
 
+Usig NOX's web interface
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Run the following command::
+
+     ./oxide -i ptcp:2525 monitorsui switchstatsws pyswitch pyauthenticator
+
+While NOX is running (with *monitorsui*) some basic usage information will be available at: http://localhost:8888/
+
 .. rubric:: Footnotes
 
-.. [#]  Another approach is to mount the physical host's file-system on
+.. [#]  Another apprach is to mount the physical host's file-system on
    each virtual host using NFS.

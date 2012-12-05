@@ -5,15 +5,13 @@ dnl Enable use of Twisted python
 dnl --
 AC_DEFUN([CHECK_TWISTED], [
   AC_ARG_WITH([python],
-              [AC_HELP_STRING([--with-python=/path/to/python.binary|yes|no],
+              [AC_HELP_STRING([--with-python=/path/to/python.binary],
                               [Specify python binary (must be v2.5 or greater and must have twisted installed)])],
-               [path="$withval"], [path="yes"])dnl
-
-  if test "x$path" != "xno"; then
-    if test -n "$path"; then
-        PYTHON="$path"
-    fi    
-
+               [path="$withval"], [path="no"])dnl
+  if test "$path" = "yes"; then
+    AC_PYTHON_DEVEL([>='2.5'])
+  elif test -n "$path" & test "$path" != "no"; then
+    PYTHON="$path"
     AC_PYTHON_DEVEL([>='2.5'])
 
     AC_MSG_CHECKING([whether twisted python is installed])
@@ -21,8 +19,7 @@ AC_DEFUN([CHECK_TWISTED], [
     RETVAL=$?
     if (( $RETVAL != 0 )); then
         AC_MSG_RESULT([no])
-        AC_MSG_WARN([twisted not installed, compiling without Python support])
-        PYTHON=""
+        AC_ERROR([twisted not installed])
     else
         AC_MSG_RESULT([yes])
     fi

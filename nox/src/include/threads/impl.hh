@@ -29,6 +29,7 @@
 #include <boost/noncopyable.hpp>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <stdint.h>
 
 struct msghdr;
 

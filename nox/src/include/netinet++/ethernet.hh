@@ -63,7 +63,6 @@ struct ethernet
     static const uint16_t VLAN   = htons_<0x8100>::val; 
     static const uint16_t IPV6   = htons_<0x86dd>::val; 
     static const uint16_t LLDP   = htons_<0x88cc>::val;
-    static const uint16_t PAE    = htons_<0x888e>::val;
 
     /* Values below this cutoff are 802.3 packets and the two bytes
      * following MAC addresses are used as a frame length.  Otherwise, the
@@ -116,7 +115,7 @@ inline
 std::string
 ethernet::type_str()
 {
-    return type_str(ntohs(type));
+    return type_str(type);
 }
 
 inline
@@ -152,7 +151,6 @@ ethernet::type_str(uint16_t type)
         case 0x8137: return("IPX");
         case 0x814C: return("SNMP");
         case 0x86DD: return("IPv6");
-        case 0x8808: return("Link Flow Control");
         case 0x880B: return("PPP");
         case 0x880C: return("GSMP");
         case 0x8847: return("MPLS (unicast)");
@@ -161,7 +159,7 @@ ethernet::type_str(uint16_t type)
         case 0x8864: return("PPPoE (Session)");
         case 0x88BB: return("LWAPP");
         case 0x88CC: return("LLDP");
-        case 0x888E: return("PAE (EAPOL)");
+        case 0x8E88: return("EAPOL");
         case 0x9000: return("Loopback");
         case 0x9100: /* fall through */
         case 0x9200: return("VLAN Tag Protocol Identifier");

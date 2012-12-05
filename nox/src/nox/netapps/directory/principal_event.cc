@@ -1,0 +1,38 @@
+/* Copyright 2008, 2009 (C) Nicira, Inc.
+ *
+ * This file is part of NOX.
+ *
+ * NOX is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * NOX is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with NOX.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "principal_event.hh"
+
+using namespace vigil::applications;
+
+namespace vigil {
+
+Principal_rename_event::Principal_rename_event(directory::Principal_Type type_,
+                                               uint32_t id_,
+                                               const std::string& oldname_,
+                                               const std::string& newname_)
+    : Event(static_get_name()), type(type_), id(id_), oldname(oldname_),
+      newname(newname_)
+{}
+
+Principal_delete_event::Principal_delete_event(directory::Principal_Type type_,
+                                               uint32_t id_)
+    : Event(static_get_name()), type(type_), id(id_)
+{}
+
+}

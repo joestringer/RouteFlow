@@ -49,13 +49,7 @@ check_PROGRAMS = \
 	test-timeval				\
 	test-type-props
 
-LDADD += ../lib/libnoxcore.la ../builtin/.libs/libbuiltin.la  \
-    $(BOOST_LDFLAGS)  \
-	$(BOOST_UNIT_TEST_FRAMEWORK_LIB) 			\
-	$(BOOST_FILESYSTEM_LIB) 				\
-	$(SSL_LIBS) \
-    ../components.xsd.o \
-    ../nox.xsd.o
+LDADD += ../lib/libnoxcore.la
 
 test_classifier_SOURCES = test-classifier.cc test-classifier.hh
 

@@ -33,9 +33,9 @@
 #include "pyrt.hh"
 #include "vlog.hh"
 
-#ifndef SWIG
+#ifndef SWIGPYTHON
 #include "swigpyrun.h"
-#endif // SWIG
+#endif // SWIGPYTHON
 
 using namespace std;
 
@@ -100,16 +100,16 @@ FROM_PYTHON_LONG_LONG(long long int);
 FROM_PYTHON_LONG_LONG(unsigned long int);
 FROM_PYTHON_LONG_LONG(unsigned long long int);
 
+
 template <>
 const container::Context*
 from_python(PyObject* ctxt)
 {
-    if (!SWIG_Python_GetSwigThis(ctxt) || !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+    if (!swigo || !swigo->ptr) {
         throw runtime_error("Unable to access Python context.");
     }
-    applications::PyContext* pyctxt = (applications::PyContext*)
-        SWIG_Python_GetSwigThis(ctxt)->ptr;
-
+    applications::PyContext* pyctxt = (applications::PyContext*)swigo->ptr;
     return pyctxt->ctxt;
 }
 
@@ -484,7 +484,7 @@ to_python(const ofp_flow_stats& fs)
     }
     pyglue_setdict_string(dict, "table_id", to_python(fs.table_id));
     pyglue_setdict_string(dict, "match", to_python(fs.match));
-    pyglue_setdict_string(dict, "cookie", to_python(ntohll(fs.cookie)));
+    pyglue_setdict_string(dict, "cookie", to_python(ntohl(fs.cookie)));
     pyglue_setdict_string(dict, "duration_sec", to_python(ntohl(fs.duration_sec)));
     pyglue_setdict_string(dict, "duration_nsec", to_python(ntohl(fs.duration_nsec)));
     pyglue_setdict_string(dict, "priority", to_python(ntohs(fs.priority)));

@@ -71,6 +71,18 @@ def checksum(data, start, skip_word = 0):
     return ntohs(~start & 0xffff)
 
 
+def ntohl(n):
+     l = 0L
+     for i in xrange(4):
+         l <<= 8
+         l += n & 0xff
+         n >>= 8
+     return l
+
+def htonl(l):
+    return ntohl(l)
+
+
 def ip_to_str(a):
     return "%d.%d.%d.%d" % ((a >> 24) & 0xff, (a >> 16) & 0xff, \
                             (a >> 8) & 0xff, a & 0xff)

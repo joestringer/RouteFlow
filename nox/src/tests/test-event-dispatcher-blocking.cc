@@ -23,7 +23,6 @@
 #include <boost/bind.hpp>
 #include "assert.hh"
 #include "threads/cooperative.hh"
-#include <cstdio>
 
 using namespace vigil;
 

@@ -39,7 +39,7 @@ struct udp {
 }__attribute__ ((__packed__));
 
 Packetgen::Packetgen(int num)
-    : hs_done(false), hello_rdy(false), data(DEFAULT_SIZE), packets_left(num)
+    : hs_done(false), data(DEFAULT_SIZE), packets_left(num)
 {
     ethernet *eh = (ethernet*)data.data();
     try {
@@ -96,39 +96,19 @@ Packetgen::do_send_openflow(const ofp_header* oh)
         osf->ports[0].peer = htonl(0);
         hs_done = true;
     } else if (oh->type == OFPT_SET_CONFIG) {
-        log.dbg("received SET_CONFIG\n");
         /* We ignore requests to set the switch configuration */
-    } else if (oh->type == OFPT_HELLO) {
-        log.dbg("received HELLO\n");
-        next.reset(new Array_buffer(sizeof(ofp_header)));
-        ofp_header* hello =  &next->at<ofp_header>(0) ;
-        hello->version = OFP_VERSION;
-        hello->type    = OFPT_HELLO;
-        hello->length  = htons(sizeof(ofp_header));
-        hello->xid = 0;
-        hello_rdy  = true;
     } else {
-        log.dbg("received non-feature request %x, ignoring\n",
-                oh->type);
+        log.dbg("received non-feature request, ignoring\n");
     }
     return 0;
 }
 
 std::auto_ptr<Buffer> Packetgen::do_recv_openflow(int& error)
 {
-    // -- wait for controller hello before sending
-    if(hello_rdy){
-        if (next.get()) {
-            log.dbg("\'receiving\' HELLO\n");
-            error = 0;
-            return next;
-        }
-    }
-
     // wait til features reply has been sent out
     if (!hs_done){
         // FIXME, don't want to loop endlessly
-        // log.dbg("waiting for features request\n");
+        log.dbg("waiting for features request\n");
         error = EAGAIN;
         return std::auto_ptr<Buffer>(0);
     }

@@ -28,8 +28,7 @@ enum Disposition { CONTINUE, STOP };
 
 typedef std::string Event_name;
 
-/** @defgroup noxevents NOX Events
- *
+/*
  * An Event represents a low-level or high-level event in the network.  The
  * Event class exists almost solely to provide a convenient way to pass any
  * kind of event around.  All interesting data exists in Event's derived
@@ -38,17 +37,6 @@ typedef std::string Event_name;
  * An Event supplies only information.  It does not know how to process itself,
  * because there are many possible strategies for processing a given event.
  * Processing of an Event is deferred to Handlers
- *
- */
-
-/** @ingroup noxevents
- *
- * Base class for events.
- */
-
-/** @ingroup noxevents
- *
- * Base class for events.
  */
 class Event {
 public:
@@ -62,8 +50,6 @@ public:
 
 protected:
     Event(const Event_name&);
-
-    void set_name(const Event_name&);
 
 private:
     Event_name name;

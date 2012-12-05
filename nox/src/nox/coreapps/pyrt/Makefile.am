@@ -2,7 +2,7 @@ include ../../../Make.vars
 
 EXTRA_DIST = 			\
 	__init__.py		\
-	meta.json		\
+	meta.xml		\
 	bootstrap.py    	\
 	componentws.py		\
 	deferredcallback.i	\
@@ -16,7 +16,8 @@ NOX_RUNTIMEFILES = 		\
 	__init__.py		\
 	bootstrap.py   		\
 	componentws.py		\
-	meta.json		\
+	deferredcallback.py	\
+	meta.xml		\
 	pyoxidereactor.py
 
 NOX_PYBUILDFILES = \
@@ -36,8 +37,7 @@ pkglib_LTLIBRARIES =		\
 	_oxidereactor.la	\
 	_pycomponent.la
 
-pyrt_la_CPPFLAGS =						\
-	$(AM_CPPFLAGS) 						\
+pyrt_la_CPPFLAGS = $(AM_CPPFLAGS) 				\
 	-I$(srcdir)/../ 					\
 	-I$(top_srcdir)/src/nox					\
 	-I$(top_builddir)/src/nox				\

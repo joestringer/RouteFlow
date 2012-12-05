@@ -40,7 +40,6 @@ private:
     pcap_t* pc;
     pcap_dumper_t* pd;
     bool hs_done;
-    bool hello_rdy;
     std::auto_ptr<Buffer> next;
     
     // used for pcap time delay 

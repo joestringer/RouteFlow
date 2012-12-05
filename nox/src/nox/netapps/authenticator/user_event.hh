@@ -40,12 +40,11 @@ struct User_event {
     static const char *get_reason_string(Reason reason);
 };
 
-/** \ingroup noxevents
- *
+/*
  * User authentication/deauthentication event.
  *
  * Triggers a user auth/deauth on a host.  On deauthentication, either username
- * or hostname can be wildcarded by setting it to data_cache->get_unknown_id(),
+ * or hostname can be wildcarded by setting it to NameManager::UNKNOWN_ID,
  * however both cannot be wildcarded.
  */
 
@@ -58,12 +57,12 @@ struct User_auth_event
     };
 
     // AUTHENTICATE CONSTRUCTOR
-    User_auth_event(int64_t username_, int64_t hostname_,
+    User_auth_event(uint32_t username_, uint32_t hostname_,
                     uint32_t idle_timeout_, uint32_t hard_timeout_,
                     User_event::Reason reason_);
 
     // DEAUTHENTICATE CONSTRUCTOR
-    User_auth_event(int64_t username_, int64_t hostname_,
+    User_auth_event(uint32_t username_, uint32_t hostname_,
                     User_event::Reason reason_);
 
     // -- only for use within python
@@ -74,16 +73,15 @@ struct User_auth_event
     }
 
     Action              action;
-    int64_t             username;
-    int64_t             hostname;
+    uint32_t            username;
+    uint32_t            hostname;
     uint32_t            idle_timeout;
     uint32_t            hard_timeout;
     User_event::Reason  reason;
     Event               *to_post;
 };
 
-/** \ingroup noxevents
- *
+/*
  * User join/leave event.
  *
  * Advertises a user as having joined or left a host.
@@ -97,7 +95,7 @@ struct User_join_event
         LEAVE
     };
 
-    User_join_event(Action action_, int64_t username_, int64_t hostname_,
+    User_join_event(Action action_, uint32_t username_, uint32_t hostname_,
                     User_event::Reason reason_);
 
     // -- only for use within python
@@ -108,8 +106,8 @@ struct User_join_event
     }
 
     Action              action;
-    int64_t             username;
-    int64_t             hostname;
+    uint32_t            username;
+    uint32_t            hostname;
     User_event::Reason  reason;
 };
 

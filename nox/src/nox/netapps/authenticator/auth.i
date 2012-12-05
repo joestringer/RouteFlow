@@ -19,14 +19,23 @@
 %module "nox.netapps.authenticator.pyauth"
 
 %{
-#include "core_events.hh"
+#include "aggregate-stats-in.hh"
+#include "bootstrap-complete.hh"
+#include "datapath-join.hh"
+#include "datapath-leave.hh"
+#include "desc-stats-in.hh"
+#include "echo-request.hh"
+#include "flow-removed.hh"
+#include "flow-mod-event.hh"
+#include "port-stats-in.hh"
+#include "table-stats-in.hh"
+#include "port-status.hh"
 #include "pyrt/pycontext.hh"
 #include "pyrt/pyevent.hh"
 #include "pyrt/pyglue.hh"
 
 #include "authenticator.hh"
 #include "host_event.hh"
-#include "switch_event.hh"
 #include "pyauth.hh"
 #include "user_event.hh"
 
@@ -38,9 +47,6 @@ using namespace vigil::applications;
 %import "pyrt/event.i"
 
 %include "common-defs.i"
-%include "std_list.i"
-%template(grouplist) std::list<int64_t>;
-
 %include "pyauth.hh"
 
 /*
@@ -52,18 +58,15 @@ using namespace vigil::applications;
 struct Host_event {
     enum Reason {
         AUTHENTICATION_EVENT,     // Add reasons
-        AUTO_AUTHENTICATION,
         NWADDR_AUTO_ADD,
         DEAUTHENTICATION_EVENT,   // Remove reasons
         NWADDR_AUTO_REMOVE,       // want this?
         INTERNAL_LOCATION,
-        BINDING_CHANGE,
         HARD_TIMEOUT,
         IDLE_TIMEOUT,
         SWITCH_LEAVE,
         LOCATION_LEAVE,
-        HOST_DELETE,
-        HOST_NETID_DELETE
+        HOST_DELETE
     };
 };
 
@@ -81,21 +84,19 @@ struct Host_auth_event
         EF_DLADDR,
         EF_NWADDR,
         EF_HOSTNAME,
-        EF_HOST_NETID,
         EF_ALL
     };
 
     // AUTHENTICATE constructor
     Host_auth_event(datapathid datapath_id_, uint16_t port_,
-                    ethernetaddr dladdr_, uint32_t nwaddr_, int64_t hostname_,
-                    int64_t host_netid_, uint32_t idle_timeout_,
-                    uint32_t hard_timeout_, Host_event::Reason reason_);
+                    ethernetaddr dladdr_, uint32_t nwaddr_, uint32_t hostname_,
+                    uint32_t idle_timeout_, uint32_t hard_timeout_,
+                    Host_event::Reason reason_);
 
     // DEAUTHENTICATE constructor
     Host_auth_event(datapathid datapath_id_, uint16_t port_,
-                    ethernetaddr dladdr_, uint32_t nwaddr_, int64_t hostname_,
-                    int64_t host_netid_, uint32_t enabled_fields_,
-                    Host_event::Reason reason_);
+                    ethernetaddr dladdr_, uint32_t nwaddr_, uint32_t hostname_,
+                    uint32_t enabled_fields_, Host_event::Reason reason_);
 
     // -- only for use within python
     Host_auth_event();
@@ -107,8 +108,7 @@ struct Host_auth_event
     uint16_t            port;
     ethernetaddr        dladdr;
     uint32_t            nwaddr;         // set to zero if no IP to auth
-    int64_t             hostname;
-    int64_t             host_netid;
+    uint32_t            hostname;
     uint32_t            idle_timeout;
     uint32_t            hard_timeout;
     uint32_t            enabled_fields; // bit_mask of fields to observe
@@ -125,23 +125,23 @@ struct Host_auth_event
         pyglue_setattr_string(proxy, "dladdr", to_python(ha.dladdr));
         pyglue_setattr_string(proxy, "nwaddr", to_python(ha.nwaddr));
         pyglue_setattr_string(proxy, "hostname", to_python(ha.hostname));
-        pyglue_setattr_string(proxy, "host_netid", to_python(ha.host_netid));
         pyglue_setattr_string(proxy, "idle_timeout", to_python(ha.idle_timeout));
         pyglue_setattr_string(proxy, "hard_timeout", to_python(ha.hard_timeout));
         pyglue_setattr_string(proxy, "enabled_fields", to_python(ha.enabled_fields));
         pyglue_setattr_string(proxy, "reason", to_python((uint32_t)(ha.reason)));
 
-        ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(proxy);
+        ((Event*)swigo->ptr)->operator=(e);
     }
 
     static void register_event_converter(PyObject *ctxt) {
-        if (!SWIG_Python_GetSwigThis(ctxt) || 
-            !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+        if (!swigo || !swigo->ptr) {
             throw std::runtime_error("Unable to access Python context.");
         }
         
         vigil::applications::PyContext* pyctxt = 
-            (vigil::applications::PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr;
+            (vigil::applications::PyContext*)swigo->ptr;
         pyctxt->register_event_converter<Host_auth_event>
             (&Host_auth_event_fill_python_event);
     }
@@ -159,14 +159,12 @@ struct Host_bind_event
 
     // Location binding constructor
     Host_bind_event(Action action_, datapathid datapath_id_, uint16_t port_,
-                    int64_t switchname_, int64_t locname_,
-                    ethernetaddr dladdr_, int64_t hostname_,
-                    int64_t host_netid_, Host_event::Reason reason_);
+                    ethernetaddr dladdr_, uint32_t hostname_,
+                    Host_event::Reason reason_);
 
     // Nwaddr binding constructor
     Host_bind_event(Action action_, ethernetaddr dladdr_, uint32_t nwaddr_,
-                    int64_t hostname_, int64_t host_netid_,
-                    Host_event::Reason reason_);
+                    uint32_t hostname_, Host_event::Reason reason_);
 
     // -- only for use within python
     Host_bind_event();
@@ -176,12 +174,9 @@ struct Host_bind_event
     Action              action;
     datapathid          datapath_id;  // set to zero if dladdr or nwaddr binding
     uint16_t            port;
-    int64_t             switchname;
-    int64_t             locname;
     ethernetaddr        dladdr;       // should never be 0!
     uint32_t            nwaddr;       // set to zero if loc or dladdr binding
-    int64_t             hostname;
-    int64_t             host_netid;
+    uint32_t            hostname;
     Host_event::Reason  reason;
 
 %extend {
@@ -192,25 +187,23 @@ struct Host_bind_event
         pyglue_setattr_string(proxy, "action", to_python((uint32_t)(hb.action)));
         pyglue_setattr_string(proxy, "datapath_id", to_python(hb.datapath_id));
         pyglue_setattr_string(proxy, "port", to_python(hb.port));
-        pyglue_setattr_string(proxy, "switchname", to_python(hb.switchname));
-        pyglue_setattr_string(proxy, "locname", to_python(hb.locname));
         pyglue_setattr_string(proxy, "dladdr", to_python(hb.dladdr));
         pyglue_setattr_string(proxy, "nwaddr", to_python(hb.nwaddr));
         pyglue_setattr_string(proxy, "hostname", to_python(hb.hostname));
-        pyglue_setattr_string(proxy, "host_netid", to_python(hb.host_netid));
         pyglue_setattr_string(proxy, "reason", to_python((uint32_t)(hb.reason)));
 
-        ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(proxy);
+        ((Event*)swigo->ptr)->operator=(e);
     }
 
     static void register_event_converter(PyObject *ctxt) {
-        if (!SWIG_Python_GetSwigThis(ctxt) || 
-            !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+        if (!swigo || !swigo->ptr) {
             throw std::runtime_error("Unable to access Python context.");
         }
         
         vigil::applications::PyContext* pyctxt = 
-            (vigil::applications::PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr;
+            (vigil::applications::PyContext*)swigo->ptr;
         pyctxt->register_event_converter<Host_bind_event>
             (&Host_bind_event_fill_python_event);
     }
@@ -226,7 +219,7 @@ struct Host_join_event
         LEAVE
     };
 
-    Host_join_event(Action action_, int64_t hostname_,
+    Host_join_event(Action action_, uint32_t hostname_,
                     Host_event::Reason reason_);
 
     // -- only for use within python
@@ -235,7 +228,7 @@ struct Host_join_event
     static const Event_name static_get_name();
 
     Action              action;
-    int64_t             hostname;
+    uint32_t            hostname;
     Host_event::Reason  reason;
 
 %extend {
@@ -247,17 +240,18 @@ struct Host_join_event
         pyglue_setattr_string(proxy, "hostname", to_python(hj.hostname));
         pyglue_setattr_string(proxy, "reason", to_python((uint32_t)(hj.reason)));
 
-        ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(proxy);
+        ((Event*)swigo->ptr)->operator=(e);
     }
 
     static void register_event_converter(PyObject *ctxt) {
-        if (!SWIG_Python_GetSwigThis(ctxt) || 
-            !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+        if (!swigo || !swigo->ptr) {
             throw std::runtime_error("Unable to access Python context.");
         }
         
         vigil::applications::PyContext* pyctxt = 
-            (vigil::applications::PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr;
+            (vigil::applications::PyContext*)swigo->ptr;
         pyctxt->register_event_converter<Host_join_event>
             (&Host_join_event_fill_python_event);
     }
@@ -284,12 +278,12 @@ struct User_auth_event
     };
 
     // AUTHENTICATE CONSTRUCTOR
-    User_auth_event(int64_t username_, int64_t hostname_,
+    User_auth_event(uint32_t username_, uint32_t hostname_,
                     uint32_t idle_timeout_, uint32_t hard_timeout_,
                     User_event::Reason reason_);
 
     // DEAUTHENTICATE CONSTRUCTOR
-    User_auth_event(int64_t username_, int64_t hostname_,
+    User_auth_event(uint32_t username_, uint32_t hostname_,
                     User_event::Reason reason_);
 
     // -- only for use within python
@@ -298,8 +292,8 @@ struct User_auth_event
     static const Event_name static_get_name();
 
     Action              action;
-    int64_t             username;
-    int64_t             hostname;
+    uint32_t            username;
+    uint32_t            hostname;
     uint32_t            idle_timeout;
     uint32_t            hard_timeout;
     User_event::Reason  reason;
@@ -316,17 +310,18 @@ struct User_auth_event
         pyglue_setattr_string(proxy, "hard_timeout", to_python(ua.hard_timeout));
         pyglue_setattr_string(proxy, "reason", to_python((uint32_t)(ua.reason)));
 
-        ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(proxy);
+        ((Event*)swigo->ptr)->operator=(e);
     }
 
     static void register_event_converter(PyObject *ctxt) {
-        if (!SWIG_Python_GetSwigThis(ctxt) || 
-            !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+        if (!swigo || !swigo->ptr) {
             throw std::runtime_error("Unable to access Python context.");
         }
         
         vigil::applications::PyContext* pyctxt = 
-            (vigil::applications::PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr;
+            (vigil::applications::PyContext*)swigo->ptr;
         pyctxt->register_event_converter<User_auth_event>
             (&User_auth_event_fill_python_event);
     }
@@ -342,7 +337,7 @@ struct User_join_event
         LEAVE
     };
 
-    User_join_event(Action action_, int64_t username_, int64_t hostname_,
+    User_join_event(Action action_, uint32_t username_, uint32_t hostname_,
                     User_event::Reason reason_);
 
     // -- only for use within python
@@ -351,8 +346,8 @@ struct User_join_event
     static const Event_name static_get_name();
 
     Action              action;
-    int64_t             username;
-    int64_t             hostname;
+    uint32_t            username;
+    uint32_t            hostname;
     User_event::Reason  reason;
 
 %extend {
@@ -365,66 +360,20 @@ struct User_join_event
         pyglue_setattr_string(proxy, "hostname", to_python(uj.hostname));
         pyglue_setattr_string(proxy, "reason", to_python((uint32_t)(uj.reason)));
 
-        ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(proxy);
+        ((Event*)swigo->ptr)->operator=(e);
     }
 
     static void register_event_converter(PyObject *ctxt) {
-        if (!SWIG_Python_GetSwigThis(ctxt) ||
-            !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+        SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+        if (!swigo || !swigo->ptr) {
             throw std::runtime_error("Unable to access Python context.");
         }
         
         vigil::applications::PyContext* pyctxt = 
-            (vigil::applications::PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr;
+            (vigil::applications::PyContext*)swigo->ptr;
         pyctxt->register_event_converter<User_join_event>
             (&User_join_event_fill_python_event);
-    }
-}
-
-};
-
-struct Switch_bind_event
-    : public Event
-{
-    enum Action {
-        JOIN,
-        LEAVE
-    };
-
-    Switch_bind_event(Action action_, const datapathid& dp,
-                      int64_t switchname_);
-
-    // -- only for use within python
-    Switch_bind_event();
-
-    static const Event_name static_get_name();
-
-    Action              action;
-    datapathid          datapath_id;
-    int64_t             switchname;
-
-%extend {
-    static void fill_python_event(const Event& e, PyObject* proxy) const 
-    {
-        const Switch_bind_event& sj = dynamic_cast<const Switch_bind_event&>(e);
-
-        pyglue_setattr_string(proxy, "action", to_python((uint32_t)(sj.action)));
-        pyglue_setattr_string(proxy, "datapath_id", to_python(sj.datapath_id));
-        pyglue_setattr_string(proxy, "switchname", to_python(sj.switchname));
-
-        ((Event*)SWIG_Python_GetSwigThis(proxy)->ptr)->operator=(e);
-    }
-
-    static void register_event_converter(PyObject *ctxt) {
-        if (!SWIG_Python_GetSwigThis(ctxt) || 
-            !SWIG_Python_GetSwigThis(ctxt)->ptr) {
-            throw std::runtime_error("Unable to access Python context.");
-        }
-        
-        vigil::applications::PyContext* pyctxt = 
-            (vigil::applications::PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr;
-        pyctxt->register_event_converter<Switch_bind_event>
-            (&Switch_bind_event_fill_python_event);
     }
 }
 
@@ -446,7 +395,6 @@ struct Switch_bind_event
             Host_join_event.register_event_converter(self.ctxt)
             User_auth_event.register_event_converter(self.ctxt)
             User_join_event.register_event_converter(self.ctxt)
-            Switch_bind_event.register_event_converter(self.ctxt)
 
         def getInterface(self):
             return str(PyAuth)
@@ -460,39 +408,12 @@ struct Switch_bind_event
         def clear_internal_subnets(self):
             self.authenticator.clear_internal_subnets()
 
-        def get_authed_hostname(self, dladdr, nwaddr):
-            return self.authenticator.get_authed_hostname(dladdr, nwaddr)
-
-        def get_authed_locations(self, dladdr, nwaddr):
-            return self.authenticator.get_authed_locations(dladdr, nwaddr)
-
-        def get_authed_addresses(self, hostid):
-            return self.authenticator.get_authed_addresses(hostid)
-
-        def is_virtual_location(self, dp, port):
-            return self.authenticator.is_virtual_location(dp, port)
+        def get_authed_host(self, dladdr, nwaddr):
+            return self.authenticator.get_authed_host(dladdr, nwaddr)
 
         def get_names(self, dp, inport, dlsrc, nwsrc, dldst, nwdst, callable):
             self.authenticator.get_names(dp, inport, dlsrc, nwsrc, dldst, nwdst, callable)
-
-        def all_updated(self, poison):
-            self.authenticator.all_updated(poison)
-
-        def principal_updated(self, ptype, id, poison):
-            self.authenticator.principal_updated(ptype, id, poison)
             
-        def groups_updated(self, ids, poison):
-            self.authenticator.groups_updated(ids, poison)
-
-        def is_switch_active(self, dp):
-            return self.authenticator.is_switch_active(dp)
-
-        def is_netid_active(self, netid):
-            return self.authenticator.is_netid_active(netid)
-
-        def get_port_number(self, dp, port_name):
-            return self.authenticator.get_port_number(dp, port_name)
-
     def getFactory():
         class Factory():
             def instance(self, context):

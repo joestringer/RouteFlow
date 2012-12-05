@@ -27,11 +27,12 @@ namespace applications {
 PyNAT_enforcer::PyNAT_enforcer(PyObject* ctxt)
     : enforcer(0)
 {
-    if (!SWIG_Python_GetSwigThis(ctxt) || !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+    if (!swigo || !swigo->ptr) {
         throw std::runtime_error("Unable to access Python context.");
     }
 
-    c = ((PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr)->c;
+    c = ((PyContext*)swigo->ptr)->c;
 }
 
 void

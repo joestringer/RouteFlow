@@ -19,9 +19,11 @@
 #include <boost/function.hpp>
 #include <boost/shared_ptr.hpp>
 #include <sstream>
+#include <xercesc/dom/DOM.hpp>
 
 #include "assert.hh"
 #include "bindings_storage.hh"
+#include "directory/principal_types.hh"
 #include "storage/storage-blocking.hh"
 #include "vlog.hh"
 
@@ -37,8 +39,8 @@ const std::string Bindings_Storage::LINK_TABLE_NAME = "bindings_link";
 const std::string Bindings_Storage::LOCATION_TABLE_NAME = "bindings_location";
 
 Bindings_Storage::Bindings_Storage(const container::Context* c,
-                                   const json_object*)
-    : Component(c), np_store(0), datatypes(0), data_cache(0),
+                                   const xercesc::DOMNode*)
+    : Component(c), np_store(0), namemanager(0),
       host_serial_queue(this,"Host Queue",lg),
       user_serial_queue(this,"User Queue",lg),
       dladdr_serial_queue(this,"Dladdr Queue",lg),
@@ -50,8 +52,7 @@ void
 Bindings_Storage::configure(const container::Configuration*)
 {
     resolve(np_store);
-    resolve(datatypes);
-    resolve(data_cache);
+    resolve(namemanager);
 }
 
 void
@@ -237,7 +238,7 @@ Bindings_Storage::create_tables()
 
 void
 Bindings_Storage::store_location_binding(const ethernetaddr& dladdr,
-                                         int64_t location)
+                                         uint32_t location)
 {
     storage::Query q;
     q["dladdr"] = (int64_t)(dladdr.hb_long());
@@ -251,7 +252,7 @@ Bindings_Storage::store_location_binding(const ethernetaddr& dladdr,
 }
 
 void
-Bindings_Storage::store_host_binding(int64_t host,
+Bindings_Storage::store_host_binding(uint32_t host,
                                      const ethernetaddr& dladdr,
                                      uint32_t nwaddr)
 {
@@ -268,7 +269,7 @@ Bindings_Storage::store_host_binding(int64_t host,
 }
 
 void
-Bindings_Storage::store_user_binding(int64_t user, int64_t host)
+Bindings_Storage::store_user_binding(uint32_t user, uint32_t host)
 {
     storage::Query q;
     q["host"] = (int64_t) host;
@@ -295,7 +296,7 @@ Bindings_Storage::finish_put(const storage::Result& result,
 
 void
 Bindings_Storage::remove_location_binding(const ethernetaddr& dladdr,
-                                          int64_t location)
+                                          uint32_t location)
 {
     storage::Query q;
     q["dladdr"] = (int64_t)(dladdr.hb_long());
@@ -309,7 +310,7 @@ Bindings_Storage::remove_location_binding(const ethernetaddr& dladdr,
 }
 
 void
-Bindings_Storage::remove_host_binding(int64_t host,
+Bindings_Storage::remove_host_binding(uint32_t host,
                                       const ethernetaddr& dladdr,
                                       uint32_t nwaddr)
 {
@@ -326,7 +327,7 @@ Bindings_Storage::remove_host_binding(int64_t host,
 }
 
 void
-Bindings_Storage::remove_user_binding(int64_t user, int64_t host)
+Bindings_Storage::remove_user_binding(uint32_t user, uint32_t host)
 {
     storage::Query q;
     q["host"] = (int64_t) host;
@@ -382,28 +383,17 @@ Bindings_Storage::get_all_names(Name::Type name_type,
     if (name_type == Name::USER) {
         tablename = USER_TABLE_NAME;
         info->attr = "user";
-        info->principal_type = datatypes->user_type();
     } else if (name_type == Name::HOST) {
         tablename = HOST_TABLE_NAME;
         info->attr = "host";
-        info->principal_type = datatypes->host_type();
-    } else if (name_type == Name::LOCATION
+    } else if (name_type == Name::LOCATION || name_type == Name::SWITCH
                || name_type == Name::PORT)
     {
         tablename = LOCATION_TABLE_NAME;
         info->check_type = true;
         info->attr = "name";
-        info->principal_type = datatypes->location_type();
-    } else if (name_type == Name::SWITCH
-               || name_type == Name::PORT)
-    {
-        tablename = LOCATION_TABLE_NAME;
-        info->check_type = true;
-        info->attr = "name";
-        info->principal_type = datatypes->switch_type();
     } else {
-        lg.err("get_all_names() called with invalid type = %d \n",
-               name_type);
+        lg.err("get_all_names() called with invalid type = %d \n", name_type);
         post(boost::bind(cb, NameList()));
         return;
     }
@@ -434,10 +424,9 @@ Bindings_Storage::get_all_names_cb(const storage::Result& result,
             || info->name_type == ((Name::Type)
                                    Storage_Util::get_col_as_type<int64_t>(row, "name_type")))
         {
-            Principal principal
-                = { info->principal_type,
-                    (int64_t) Storage_Util::get_col_as_type<int64_t>(row, info->attr) };
-            Name name(data_cache->get_name_ref(principal), info->name_type);
+            Name name(namemanager->get_name(
+                          (uint32_t) Storage_Util::get_col_as_type<int64_t>(row, info->attr)),
+                      info->name_type);
             info->names_found.push_back(name);
         }
     } catch (std::exception &e) {
@@ -454,7 +443,7 @@ Bindings_Storage::return_loctuples(NameList& names,
 {
     bindings->names.splice(bindings->names.end(), names);
 
-    hash_map<int64_t, Loc>::const_iterator location;
+    hash_map<uint32_t, Loc>::const_iterator location;
     uint32_t i = 0;
     for (location = bindings->location_info.begin();
          location != bindings->location_info.end(); ++location, ++i)
@@ -473,62 +462,28 @@ Bindings_Storage::return_loctuples(NameList& names,
 }
 
 void
-Bindings_Storage::return_host_users(const Get_Bindings_Op_ptr& bindings,
-                                    bool ret_users, const Get_names_callback& cb)
-{
-    hash_map<int64_t, std::list<int64_t> >::const_iterator uhost;
-    std::list<int64_t>::const_iterator user;
-    Principal principal = { ret_users ? datatypes->user_type()
-                            : datatypes->host_type(), 0 };
-    for (uhost = bindings->host_users.begin();
-         uhost != bindings->host_users.end(); ++uhost)
-    {
-        if (ret_users) {
-            for (user = uhost->second.begin(); user != uhost->second.end(); ++user) {
-                principal.id = *user;
-                const std::string& name
-                    = data_cache->get_name_ref(principal);
-                bindings->names.push_back(Name(name, Name::USER, *user));
-            }
-        } else {
-            principal.id = uhost->first;
-            const std::string& name
-                = data_cache->get_name_ref(principal);
-            bindings->names.push_back(Name(name, Name::HOST, uhost->first));
-        }
-    }
-    post(boost::bind(cb, bindings->names));
-}
-
-void
 Bindings_Storage::return_names(const Get_Bindings_Op_ptr& bindings,
                                const Get_names_callback& cb)
 {
-    Principal principal = { datatypes->user_type(), 0 } ;
-    hash_map<int64_t, std::list<int64_t> >::const_iterator uhost;
-    std::list<int64_t>::const_iterator user;
+    hash_map<uint32_t, std::list<uint32_t> >::const_iterator uhost;
+    std::list<uint32_t>::const_iterator user;
     for (uhost = bindings->host_users.begin();
          uhost != bindings->host_users.end(); ++uhost)
     {
         for (user = uhost->second.begin(); user != uhost->second.end(); ++user) {
-            principal.id = *user;
-            const std::string& name
-                = data_cache->get_name_ref(principal);
-            bindings->names.push_back(Name(name, Name::USER, *user));
+            const std::string& name = namemanager->get_name(*user);
+            bindings->names.push_back(Name(name, Name::USER));
         }
     }
 
-    principal.type = datatypes->host_type();
     hash_map<uint64_t, std::list<nwhost> >::const_iterator dlnw;
     std::list<nwhost>::const_iterator host;
     for (dlnw = bindings->dladdr_nwhosts.begin();
          dlnw != bindings->dladdr_nwhosts.end(); ++dlnw)
     {
         for (host = dlnw->second.begin(); host != dlnw->second.end(); ++host) {
-            principal.id = host->host;
-            const std::string& name
-                = data_cache->get_name_ref(principal);
-            bindings->names.push_back(Name(name, Name::HOST, host->host));
+            const std::string& name = namemanager->get_name(host->host);
+            bindings->names.push_back(Name(name, Name::HOST));
         }
     }
 
@@ -539,15 +494,12 @@ Bindings_Storage::return_names(const Get_Bindings_Op_ptr& bindings,
         return;
     }
 
-    principal.type = datatypes->location_type();
-    hash_map<int64_t, Loc>::const_iterator location;
+    hash_map<uint32_t, Loc>::const_iterator location;
     for (location = bindings->location_info.begin();
          location != bindings->location_info.end(); ++location)
     {
-        principal.id = location->first;
-        const std::string& name
-            = data_cache->get_name_ref(principal);
-        bindings->names.push_back(Name(name, Name::LOCATION, location->first));
+        const std::string& name = namemanager->get_name(location->first);
+        bindings->names.push_back(Name(name, Name::LOCATION));
     }
     post(boost::bind(cb, bindings->names));
 }
@@ -556,9 +508,9 @@ void
 Bindings_Storage::return_entities(const Get_Bindings_Op_ptr& bindings,
                                   const Get_entities_callback& cb)
 {
-    hash_map<uint64_t, std::list<int64_t> >::const_iterator dladdr;
-    std::list<int64_t>::const_iterator locname;
-    hash_map<int64_t, Loc>::const_iterator loc;
+    hash_map<uint64_t, std::list<uint32_t> >::const_iterator dladdr;
+    std::list<uint32_t>::const_iterator locname;
+    hash_map<uint32_t, Loc>::const_iterator loc;
     hash_map<uint64_t, std::list<nwhost> >::const_iterator dlnw;
     std::list<nwhost>::const_iterator host;
     std::list<uint32_t>::const_iterator nw;
@@ -645,7 +597,10 @@ Bindings_Storage::get_names_by_ap3(const NameList& locnames,
     for (NameList::const_iterator name = locnames.begin();
          name != locnames.end(); ++name)
     {
-        info->location_info[name->id] = locations.front();
+        uint32_t id = namemanager->get_principal_id(name->name,
+                                                    directory::LOCATION_PRINCIPAL,
+                                                    false, true);
+        info->location_info[id] = locations.front();
     }
 
     locations.pop_front();
@@ -723,13 +678,12 @@ Bindings_Storage::get_names(const storage::Query &query, bool loc_tuples,
         datapathid dpid = datapathid::from_host((uint64_t) Storage_Util::get_col_as_type<int64_t>(query, "dpid"));
         uint16_t port = (uint16_t) Storage_Util::get_col_as_type<int64_t>(query, "port");
         std::list<Loc> locations(1, Loc(dpid, port));
-        get_names_by_ap2(locations, loc_tuples, filter,
-                         boost::bind(&Bindings_Storage::return_names, this, _1, cb));
+        get_names_by_ap2(locations, loc_tuples, filter, boost::bind(&Bindings_Storage::return_names,
+                                                                    this, _1, cb));
     } else {
-        Get_Bindings_Op_ptr info(new Get_Bindings_Op(
-                                     boost::bind(&Bindings_Storage::return_names,
-                                                 this, _1, cb),
-                                     GET_DLADDRS_BY_HOST, loc_tuples));
+        Get_Bindings_Op_ptr info(new Get_Bindings_Op(boost::bind(&Bindings_Storage::return_names,
+                                                                 this, _1, cb),
+                                                     GET_DLADDRS_BY_HOST, loc_tuples));
         if (nwfilters > 1) {
             // because no index on addresses alone
             info->filter = filter;
@@ -757,7 +711,7 @@ Bindings_Storage::get_locations_cb(const storage::Result& result,
     }
 
     try {
-        int64_t name = Storage_Util::get_col_as_type<int64_t>(row, "name");
+        uint32_t name = (uint32_t) Storage_Util::get_col_as_type<int64_t>(row, "name");
         datapathid dpid = datapathid::from_host((uint64_t) Storage_Util::get_col_as_type<int64_t>(row, "dpid"));
         uint16_t port = (uint16_t) Storage_Util::get_col_as_type<int64_t>(row, "port");
         info->location_info[name] = Loc(dpid, port);
@@ -791,7 +745,7 @@ Bindings_Storage::get_dladdrs_cb(const storage::Result& result,
             add = (other == dladdr);
         }
         if (add) {
-            int64_t location = (int64_t) Storage_Util::get_col_as_type<int64_t>(row, "location");
+            uint32_t location = (uint32_t) Storage_Util::get_col_as_type<int64_t>(row, "location");
             info->dladdr_locations[dladdr].push_back(location);
         }
     } catch (std::exception &e) {
@@ -833,7 +787,7 @@ Bindings_Storage::get_hosts_cb(const storage::Result& result,
             }
             if (add) {
                 ethernetaddr dladdr(dl);
-                int64_t host = (int64_t) Storage_Util::get_col_as_type<int64_t>(row, "host");
+                uint32_t host = (uint32_t) Storage_Util::get_col_as_type<int64_t>(row, "host");
                 bool inserted = false;
                 hash_map<uint64_t, std::list<nwhost> >::iterator entry =
                     info->dladdr_nwhosts.find(dl);
@@ -876,8 +830,8 @@ Bindings_Storage::get_users_cb(const storage::Result& result,
     }
 
     try {
-        int64_t host = Storage_Util::get_col_as_type<int64_t>(row, "host");
-        int64_t user = Storage_Util::get_col_as_type<int64_t>(row, "user");
+        uint32_t host = (uint32_t) Storage_Util::get_col_as_type<int64_t>(row, "host");
+        uint32_t user = (uint32_t) Storage_Util::get_col_as_type<int64_t>(row, "user");
         info->host_users[host].push_back(user);
     } catch (std::exception &e) {
         lg.err("exception reading row in get_users_cb(): %s \n", e.what());
@@ -891,18 +845,18 @@ Bindings_Storage::run_get_bindings_fsm(const Get_Bindings_Op_ptr& info)
 {
     uint32_t i = 0;
     storage::Query q;
-    hash_map<int64_t, Loc>::const_iterator loc;
+    hash_map<uint32_t, Loc>::const_iterator loc;
     hash_map<uint64_t, std::list<nwhost> >::const_iterator host;
     std::list<nwhost>::const_iterator nw;
-    hash_map<uint64_t, std::list<int64_t> >::const_iterator dladdr;
-    hash_map<int64_t, std::list<int64_t> >::const_iterator uhost;
+    hash_map<uint64_t, std::list<uint32_t> >::const_iterator dladdr;
+    hash_map<uint32_t, std::list<uint32_t> >::const_iterator uhost;
 
     switch (info->cur_state) {
     case GET_LOCATIONS:
         for (dladdr = info->dladdr_locations.begin();
              dladdr != info->dladdr_locations.end(); ++dladdr)
         {
-            for (std::list<int64_t>::const_iterator ap = dladdr->second.begin();
+            for (std::list<uint32_t>::const_iterator ap = dladdr->second.begin();
                  ap != dladdr->second.end(); ++ap, ++i)
             {
                 if (i == info->index) {
@@ -1012,15 +966,13 @@ Bindings_Storage::run_get_bindings_fsm(const Get_Bindings_Op_ptr& info)
                     {
                         q["host"] = (int64_t) nw->host;
                         np_store->get(USER_TABLE_NAME, q,
-                                      boost::bind(&Bindings_Storage::get_users_cb,
+                                      boost::bind(&Bindings_Storage::get_hosts_cb,
                                                   this, _1, _2, _3, info));
                         return;
                     }
                 }
             }
         }
-        break;
-    case DONE:
         break;
     default:
         VLOG_ERR(lg, "Unknown state %u.", info->cur_state);
@@ -1029,33 +981,7 @@ Bindings_Storage::run_get_bindings_fsm(const Get_Bindings_Op_ptr& info)
 }
 
 void
-Bindings_Storage::get_host_users(int64_t hostname,
-                                 const Get_names_callback& cb)
-{
-    storage::Query q;
-    q["host"] = hostname;
-    Get_Bindings_Op_ptr info(new Get_Bindings_Op(boost::bind(&Bindings_Storage::return_host_users,
-                                                             this, _1, true, cb),
-                                                 DONE, false));
-    np_store->get(USER_TABLE_NAME, q,
-                  boost::bind(&Bindings_Storage::get_users_cb, this, _1, _2, _3, info));
-}
-
-void
-Bindings_Storage::get_user_hosts(int64_t username,
-                                 const Get_names_callback& cb)
-{
-    storage::Query q;
-    q["user"] = username;
-    Get_Bindings_Op_ptr info(new Get_Bindings_Op(boost::bind(&Bindings_Storage::return_host_users,
-                                                             this, _1, false, cb),
-                                                 DONE, false));
-    np_store->get(USER_TABLE_NAME, q,
-                  boost::bind(&Bindings_Storage::get_users_cb, this, _1, _2, _3, info));
-}
-
-void
-Bindings_Storage::get_entities_by_name(int64_t name,
+Bindings_Storage::get_entities_by_name(const std::string& name,
                                        Name::Type name_type,
                                        const Get_entities_callback &cb)
 {
@@ -1064,7 +990,7 @@ Bindings_Storage::get_entities_by_name(int64_t name,
         Get_Bindings_Op_ptr info(new Get_Bindings_Op(boost::bind(&Bindings_Storage::return_entities,
                                                                  this, _1, cb),
                                                      GET_HOSTS_BY_USER, false));
-        q["user"] = name;
+        q["user"] = (int64_t) namemanager->get_principal_id(name, directory::USER_PRINCIPAL, false, false);
         np_store->get(USER_TABLE_NAME, q,
                       boost::bind(&Bindings_Storage::get_users_cb, this,
                                   _1, _2, _3, info));
@@ -1072,7 +998,7 @@ Bindings_Storage::get_entities_by_name(int64_t name,
         Get_Bindings_Op_ptr info(new Get_Bindings_Op(boost::bind(&Bindings_Storage::return_entities,
                                                                  this, _1, cb),
                                                      GET_DLADDRS_BY_HOST, false));
-        q["host"] = name;
+        q["host"] = (int64_t) namemanager->get_principal_id(name, directory::HOST_PRINCIPAL, false, false);
         np_store->get(HOST_TABLE_NAME, q,
                       boost::bind(&Bindings_Storage::get_hosts_cb, this,
                                   _1, _2, _3, info));
@@ -1080,7 +1006,7 @@ Bindings_Storage::get_entities_by_name(int64_t name,
         Get_Bindings_Op_ptr info(new Get_Bindings_Op(boost::bind(&Bindings_Storage::return_entities,
                                                                  this, _1, cb),
                                                      GET_LOCATIONS, false));
-        q["location"] = name;
+        q["location"] = (int64_t) namemanager->get_principal_id(name, directory::LOCATION_PRINCIPAL, false, false);
         np_store->get(DLADDR_TABLE_NAME, q,
                       boost::bind(&Bindings_Storage::get_dladdrs_cb, this,
                                   _1, _2, _3, info));
@@ -1270,7 +1196,7 @@ Bindings_Storage::clear_links()
 
 void
 Bindings_Storage::add_name_for_location(const datapathid &dpid,
-                                        uint16_t port, int64_t name,
+                                        uint16_t port, uint32_t name,
                                         Name::Type name_type)
 {
     storage::Query q;
@@ -1299,7 +1225,7 @@ Bindings_Storage::add_name_for_location(const datapathid &dpid,
 
 void
 Bindings_Storage::remove_name_for_location(const datapathid &dpid,
-                                           uint16_t port, int64_t name,
+                                           uint16_t port, uint32_t name,
                                            Name::Type name_type)
 {
     storage::Query q;
@@ -1405,17 +1331,9 @@ Bindings_Storage::get_locnames_cb(const storage::Result &result,
 
     // result.code == SUCCESS
     try {
-        Principal principal
-            = { 0, Storage_Util::get_col_as_type<int64_t>(row, "name") };
-        Name::Type type
-            = (Name::Type) Storage_Util::get_col_as_type<int64_t>(row, "name_type");
-        if (type == Name::SWITCH) {
-            principal.type = datatypes->switch_type();
-        } else {
-            principal.type = datatypes->location_type();
-        }
-        const std::string& name = data_cache->get_name_ref(principal);
-        op->loc_names.push_back(Name(name, type, principal.id));
+        std::string name = namemanager->get_name((uint32_t) Storage_Util::get_col_as_type<int64_t>(row, "name"));
+        int64_t type = Storage_Util::get_col_as_type<int64_t>(row, "name_type");
+        op->loc_names.push_back(Name(name, (Name::Type) type));
     } catch (std::exception &e) {
         // print error but keep trying to read more rows
         lg.err("get_locnames_cb exception: %s \n", e.what());
@@ -1498,7 +1416,7 @@ Bindings_Storage::get_locnames_cb3(const NameList &names,
     if (op->loc_names.size() == 0) {
         std::stringstream ss;
         ss << switch_name << ":" << portname;
-        op->loc_names.push_back(Name(ss.str(), Name::LOCATION, -1));
+        op->loc_names.push_back(Name(ss.str(), Name::LOCATION));
     }
 
     // Additionally, if the type was LOC_TUPLE, we want to append
@@ -1525,14 +1443,26 @@ Bindings_Storage::get_locnames_cb3(const NameList &names,
 }
 
 void
-Bindings_Storage::get_location_by_name(int64_t name,
+Bindings_Storage::get_location_by_name(const std::string& name,
                                        Name::Type name_type,
                                        const Get_locations_callback &cb)
 {
     Get_Loc_By_Name_Op_ptr op(new Get_Loc_By_Name_Op(cb));
+    directory::Principal_Type ptype = (directory::Principal_Type)0;
+    if (name_type == Name::LOCATION) {
+        ptype = directory::LOCATION_PRINCIPAL;
+    } else if (name_type == Name::SWITCH) {
+        ptype = directory::SWITCH_PRINCIPAL;
+    } else if (name_type == Name::PORT) {
+        ptype = (directory::Principal_Type) ~((uint32_t)0);
+    } else {
+        VLOG_ERR(lg, "Invalid name type %u.", name_type);
+        post(boost::bind(cb, LocationList()));
+        return;
+    }
 
     storage::Query q;
-    q["name"] = name;
+    q["name"] = (int64_t) namemanager->get_principal_id(name, ptype, false, false);
     q["name_type"] = (int64_t) name_type;
     np_store->get(LOCATION_TABLE_NAME, q,
                   boost::bind(&Bindings_Storage::get_loc_by_name_cb,

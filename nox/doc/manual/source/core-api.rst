@@ -79,7 +79,7 @@ is already buffering the packet.  Unless otherwise instructed,
 switches buffer incoming packets and only send the first 128 bytes to
 the controller.  The **buffer_id** is then passed to the application
 in a **Packet_in_event**.  Use the first method to send this packet
-out again (see *src/nox/coreapps/hub/hub.cc* for an example).
+out again (see *src/nox/apps/hub/hub.cc* for an example).
 
 The second method allows an application to construct and send an
 arbitrary packet out on the network.

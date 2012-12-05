@@ -23,7 +23,6 @@
 #include <stdexcept>
 #include <stdint.h>
 
-#include "openflow-default.hh"
 #include "assert.hh"
 #include "component.hh"
 #include "flow.hh"
@@ -31,6 +30,7 @@
 #include "hash_set.hh"
 #include "packet-in.hh"
 #include "vlog.hh"
+#include "openflow-default.hh"
 
 #include "netinet++/ethernetaddr.hh"
 #include "netinet++/ethernet.hh"
@@ -82,7 +82,7 @@ class Switch
 {
 public:
     Switch(const Context* c,
-           const json_object*) 
+           const xercesc::DOMNode*)
         : Component(c) { }
 
     void configure(const Configuration*);
@@ -176,15 +176,14 @@ Switch::handle(const Event& e)
         ofm->match.nw_src = flow.nw_src;
         ofm->match.nw_dst = flow.nw_dst;
         ofm->match.nw_proto = flow.nw_proto;
-        ofm->match.nw_tos = flow.nw_tos;
         ofm->match.tp_src = flow.tp_src;
         ofm->match.tp_dst = flow.tp_dst;
-        ofm->cookie = htonl(0);
         ofm->command = htons(OFPFC_ADD);
         ofm->buffer_id = htonl(buffer_id);
         ofm->idle_timeout = htons(5);
         ofm->hard_timeout = htons(OFP_FLOW_PERMANENT);
         ofm->priority = htons(OFP_DEFAULT_PRIORITY);
+        ofm->cookie = htonl(0);
         ofm->flags = htons(ofd_flow_mod_flags());
         ofp_action_output& action = *((ofp_action_output*)ofm->actions);
         memset(&action, 0, sizeof(ofp_action_output));

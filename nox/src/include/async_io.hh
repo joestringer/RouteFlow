@@ -18,6 +18,7 @@
 #ifndef ASYNC_IO_HH
 #define ASYNC_IO_HH 1
 
+#include <cstdio>
 #include <memory>
 #include <unistd.h>
 

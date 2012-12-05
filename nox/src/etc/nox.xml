@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nox:nox xmlns:nox="http://www.noxrepo.org/nox.xsd">
+  <events>
+    <event name="Openflow_msg_event">
+      <filter>timcanpy</filter>
+    </event>
+
+    <event name="Book_msg_event">
+      <filter>mpls</filter>
+      <filter>bookman</filter>
+      <filter>lavi</filter>
+    </event>
+
+    <event name="Msg_event">
+      <filter>messenger</filter>
+      <filter>snmpmsg</filter>
+      <filter>bicast</filter>
+      <filter>informedhandover</filter>
+      <filter>aggregationmsg</filter>
+    </event>
+
+    <event name="Host_route_event">
+      <filter>lenalee</filter>
+    </event>
+
+    <event name="Flowdb_event">
+      <filter>flowroutecache</filter>
+    </event>
+
+    <event name="SNMP_event">
+      <filter>snmpmsg</filter>
+      <filter>snmptrap</filter>
+    </event>
+
+    <event name="SNMP_beacon_event">
+      <filter>apdb</filter>
+    </event>
+
+    <event name="SNMP_host_event">
+      <filter>mobiledb</filter>
+      <filter>informedhandover</filter>
+      <filter>hardhandover</filter>
+      <filter>bicast</filter>
+    </event>
+
+    <event name="Agg_msg_event">
+      <filter>aggregationmsg</filter>
+    </event>
+
+    <event name="Agg_msg_py_event">
+      <filter>pyaggregationdb</filter>
+    </event>
+
+
+    <event name="Datapath_join_event">
+      <filter>marie</filter>
+      <filter>eventlogger</filter>
+      <filter>dhcp</filter>
+      <filter>authenticator</filter>
+      <filter>discovery</filter>
+    </event>
+
+    <event name="Datapath_leave_event">
+      <filter>marie</filter>
+      <filter>eventlogger</filter>
+      <filter>noop</filter>
+    </event>
+
+    <event name="Packet_in_event">
+      <filter>discovery</filter>
+      <filter>mpls</filter>
+      <filter>dhcp</filter>
+      <filter>authenticator</filter>
+      <filter>dwh</filter>
+      <filter>noop</filter>
+      <filter>counter</filter>
+      <filter>packetdump</filter>
+      <filter>ctlflood</filter>
+      <filter>switch</filter>
+      <filter>aggregationmsg</filter>
+    </event>
+
+    <event name="Flow_in_event">
+      <filter>bicast</filter>
+      <filter>hardhandover</filter>
+      <filter>sepl_enforcer</filter>
+      <filter>routing</filter>
+      <filter>sample_routing</filter>
+      <filter>flow_cache</filter>
+    </event>
+
+    <event name="Link_event">
+      <filter>marie</filter>
+      <filter>eventlogger</filter>
+      <filter>authenticator</filter>
+    </event>
+
+    <event name="Flow_mod_event">
+      <filter>flowdb</filter>
+      <filter>dwh</filter>
+    </event>
+
+    <event name="Flow_removed_event">
+      <filter>flowdb</filter>
+      <filter>eventlogger</filter>
+      <filter>dwh</filter>
+    </event>
+    <event name="Flow_stats_in_event">
+      <filter>flowdb</filter>
+    </event>
+    <event name="NetInfo_mod_event">
+      <filter>authenticator</filter>
+    </event>
+
+  </events>
+</nox:nox>

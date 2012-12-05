@@ -136,23 +136,20 @@ class ipv4(packet_base):
         # At this point, we are reasonably certain that we have an IP
         # packet
         self.parsed = True
-        
-        length = self.iplen
-        if length > dlen: 
-            length = dlen # Clamp to what we've got
+
         if self.protocol == ipv4.UDP_PROTOCOL:
-            self.next = udp(arr=self.arr[self.hl*4:length], prev=self)
+            self.next = udp(arr=self.arr[self.hl*4:], prev=self)
         elif self.protocol == ipv4.TCP_PROTOCOL:
-            self.next = tcp(arr=self.arr[self.hl*4:length], prev=self)
+            self.next = tcp(arr=self.arr[self.hl*4:], prev=self)
         elif self.protocol == ipv4.ICMP_PROTOCOL:
-            self.next = icmp(arr=self.arr[self.hl*4:length], prev=self)
+            self.next = icmp(arr=self.arr[self.hl*4:], prev=self)
         elif dlen < self.iplen:
             self.msg('(ip parse) warning IP packet data shorter than IP len: %u < %u' % (dlen, self.iplen))
         else:
-            self.next =  self.arr[self.hl*4:length].tostring()
+            self.next =  self.arr[self.hl*4:].tostring()
 
         if isinstance(self.next, packet_base) and not self.next.parsed:
-            self.next =  self.arr[self.hl*4:length].tostring()
+            self.next =  self.arr[self.hl*4:].tostring()
 
     def checksum(self):    
         data = struct.pack('!BBHHHBBHII', (self.v << 4) + self.hl, self.tos, \

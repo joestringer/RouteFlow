@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components:components xmlns:components="http://www.noxrepo.org/components.xsd">
+
+  <component>
+    <name>circsw_gui</name>
+    <library>circsw_gui</library>
+    <dependency><name>bookman</name></dependency>
+    <dependency><name>msgpacket</name></dependency>
+
+  </component>
+
+
+
+  <component>
+    <name>circsw</name>
+    <library>circsw</library>
+    <dependency><name>circsw_gui</name></dependency>
+  </component>
+
+
+
+</components:components>

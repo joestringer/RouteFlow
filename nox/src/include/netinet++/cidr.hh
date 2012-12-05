@@ -103,7 +103,7 @@ cidr_ipaddr::cidr_ipaddr(const char* cidr_str)
 inline
 cidr_ipaddr::cidr_ipaddr(const std::string& cidr_str)
 {
-    size_t idx = cidr_str.find('/');
+    uint32_t idx = cidr_str.find('/');
     if (idx != std::string::npos) {
         addr = ipaddr(cidr_str.substr(0, idx));
         set_mask(cidr_str.c_str() + idx);
@@ -139,10 +139,7 @@ void
 cidr_ipaddr::fill_string(std::string& in) const
 {
     char buf[4];
-#ifndef NDEBUG 
-    int ret = 
-#endif    
-      snprintf(buf, 4, "%"PRIu32"", get_prefix_len());
+    int ret = snprintf(buf, 4, "%"PRIu32"", get_prefix_len());
     assert(ret < 4);
     in = addr.string() +'/' + buf;
 }

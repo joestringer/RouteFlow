@@ -42,7 +42,7 @@ NW_SRC_N_WILD = "nw_src_n_wild"
 NW_DST     = "nw_dst"
 NW_DST_N_WILD = "nw_dst_n_wild"
 NW_PROTO   = "nw_proto"
-NW_TOS     = "nw_tos"
+NW_TOS   = "nw_tos"
 TP_SRC     = "tp_src"
 TP_DST     = "tp_dst"
 GROUP_SRC  = "group_src"
@@ -82,9 +82,7 @@ HW_ADDR     = 'hw_addr'
 ###########################################################################
 
 class Component: 
-    """Abstract class to inherited by all Python components.
-    \ingroup noxapi
-    """
+    """Abstract class to inherited by all Python components."""
     def __init__(self, ctxt):
         self.ctxt = ctxt
         self.component_names = None 
@@ -104,9 +102,9 @@ class Component:
         pass
 
     def getInterface(self):
-        """Return the interface (class) component provides.  The default
-        implementation returns the class itself."""
-        return self.__class__
+        """
+        """
+        raise Exception('getInterface not implemented in the inheriting class')
 
     def resolve(self, interface):
         return self.ctxt.resolve(str(interface))    
@@ -154,6 +152,11 @@ class Component:
                 a = struct.pack("!HHBBH", action[0], 8, action[1], 0, 0)
             elif action[0] == openflow.OFPAT_STRIP_VLAN:
                 a = struct.pack("!HHI", action[0], 8, 0)
+            elif action[0] == openflow.OFPAT_PUSH_MPLS:
+                a = struct.pack("!HHHH", action[0], 8, action[1], 0)
+            elif action[0] == openflow.OFPAT_SET_MPLS_LABEL:
+                a = struct.pack("!HHI", action[0], 8, action[1])
+
             elif action[0] == openflow.OFPAT_SET_DL_SRC \
                     or action[0] == openflow.OFPAT_SET_DL_DST:
                 eaddr = convert_to_eaddr(action[1])
@@ -167,7 +170,8 @@ class Component:
                 if iaddr == None:
                     print 'invalid ip addr'
                     return None
-                a = struct.pack("HHI", htons(action[0]), htons(8), htonl(ipaddr(iaddr).addr))
+                # ipaddr already in network byte order
+                a = struct.pack("HHI", htons(action[0]), htons(8), iaddr.addr)
             elif action[0] == openflow.OFPAT_SET_TP_SRC \
                     or action[0] == openflow.OFPAT_SET_TP_DST:
                 a = struct.pack("!HHHH", action[0], 8, action[1], 0)
@@ -209,6 +213,8 @@ class Component:
         """
         if type(packet) == type(array.array('B')):
             packet = packet.tostring()
+        elif packet == None:
+            packet = ""
 
         if type(actions) == types.IntType:
             self.ctxt.send_openflow_packet_port(dp_id, packet, actions, inport)
@@ -231,14 +237,12 @@ class Component:
         inport - dp port to mark as source (defaults to Controller port)
         """
         if type(actions) == types.IntType:
-            self.ctxt.send_openflow_buffer_port(dp_id, buffer_id, actions,
-                                                inport)
+            self.ctxt.send_openflow_buffer(dp_id, buffer_id, actions, inport)
         elif type(actions) == types.ListType:
             oactions = self.make_action_array(actions)
             if oactions == None:
                 raise Exception('Bad action')
-            self.ctxt.send_openflow_buffer_acts(dp_id, buffer_id, oactions,
-                                                inport)
+            self.ctxt.send_openflow_buffer(dp_id, buffer_id, oactions, inport)
         else:
             raise Exception('Bad argument')
 
@@ -333,6 +337,7 @@ class Component:
     # NW_SRC     = "nw_src"
     # NW_DST     = "nw_dst"
     # NW_PROTO   = "nw_proto"
+    # NW_TOS   = "nw_tos"
     # TP_SRC     = "tp_src"
     # TP_DST     = "tp_dst"
     #
@@ -587,7 +592,6 @@ class Component:
                 val = htons(val)
             elif key == DL_VLAN_PCP:
                 field = Packet_expr.DL_VLAN_PCP
-                val = val
             elif key == DL_TYPE:
                 field = Packet_expr.DL_TYPE
                 val = htons(val)
@@ -617,6 +621,8 @@ class Component:
                     return False
             elif key == NW_PROTO:
                 field = Packet_expr.NW_PROTO
+            elif key == NW_TOS:
+                field = Packet_expr.NW_TOS
             elif key == TP_SRC:
                 field = Packet_expr.TP_SRC
                 val = htons(val)
@@ -643,26 +649,6 @@ class Component:
                 e.set_uint32_field(field, val)
 
         return self.ctxt.register_handler_on_match(gen_packet_in_cb(handler), priority, e)
-
-    def register_for_switch_mgr_join(self, handler):
-        """
-        register a handler to be called on every switch_mgr_join
-        event handler will be called with the following args:
-        
-        handler(mgmt_id)
-        """
-        self.register_handler(Switch_mgr_join_event.static_get_name(),
-                              gen_switch_mgr_join_cb(handler))
-
-    def register_for_switch_mgr_leave(self, handler):
-        """
-        register a handler to be called on every switch_mgr_leave
-        event handler will be called with the following args:
-        
-        handler(mgmt_id)
-        """
-        self.register_handler(Switch_mgr_leave_event.static_get_name(),
-                              gen_switch_mgr_leave_cb(handler))
 
     def unregister_handler(self, rule_id):
         """

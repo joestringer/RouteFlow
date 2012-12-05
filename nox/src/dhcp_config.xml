@@ -1,0 +1,32 @@
+<dhcpconfig>
+  <filter SATISFY_ALL="true">
+
+    <filter SATISFY_ALL="false">
+      <filter SATISFY_ALL="true">
+        <pfilter>
+          <dpid start="00db9000000" end="00db9FFFFFF" />
+        </pfilter>
+      </filter>
+      <filter SATISFY_ALL="true">
+        <pfilter>
+          <dpid start="20db9000000" end="20db9FFFFFF" />
+        </pfilter>
+      </filter>
+    </filter>
+
+    <filter SATISFY_ALL="true">
+      <pfilter>
+        <port start="0" end="0" />
+      </pfilter>
+    </filter>
+
+    <filter SATISFY_ALL="false">
+      <filter SATISFY_ALL="true">
+        <pfilter>
+          <whois server="whois.stanford.edu" />
+        </pfilter>
+      </filter>
+    </filter>
+
+  </filter>
+</dhcpconfig>

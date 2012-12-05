@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -18,6 +18,8 @@
 #ifndef NAT_ENFORCER_HH
 #define NAT_ENFORCER_HH 1
 
+#include <xercesc/dom/DOM.hpp>
+
 #include "authenticator/flow_util.hh"
 #include "classifier.hh"
 #include "component.hh"
@@ -28,10 +30,8 @@ namespace applications {
 
 struct NAT_data {
     const Flow *flow;
-    const GroupList *src_dladdr_groups;
-    const GroupList *src_nwaddr_groups;
-    const GroupList *dst_dladdr_groups;
-    const GroupList *dst_nwaddr_groups;
+    const std::vector<uint32_t> *src_addr_groups;
+    const std::vector<uint32_t> *dst_addr_groups;
 };
 
 class NAT_enforcer
@@ -39,7 +39,7 @@ class NAT_enforcer
 {
 
 public:
-    NAT_enforcer(const container::Context*, const json_object*);
+    NAT_enforcer(const container::Context*, const xercesc::DOMNode*);
 
     static void getInstance(const container::Context*, NAT_enforcer*&);
 
@@ -47,10 +47,8 @@ public:
     void install();
 
     void get_nat_locations(const Flow *flow,
-                           const GroupList *sdladdr_groups,
-                           const GroupList *snwaddr_groups,
-                           const GroupList *ddladdr_groups,
-                           const GroupList *dnwaddr_groups,
+                           const std::vector<uint32_t> *saddr_groups,
+                           const std::vector<uint32_t> *daddr_groups,
                            std::vector<const std::vector<uint64_t>*>& locations);
 
     static
@@ -70,7 +68,7 @@ get_field<Flow_expr, applications::NAT_data>(uint32_t,
                                              const applications::NAT_data&,
                                              uint32_t, uint32_t&);
 template<>
-bool matches(uint32_t rule_id, const Flow_expr&, const applications::NAT_data&);
+bool matches(const Flow_expr&, const applications::NAT_data&);
 
 } // namespace vigil
 

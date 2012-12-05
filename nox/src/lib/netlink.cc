@@ -23,7 +23,6 @@
 #include <cerrno>
 #include <fcntl.h>
 #include <inttypes.h>
-#include <stdio.h>
 #include <sys/socket.h>
 #include <linux/socket.h>
 #include <linux/netlink.h>
@@ -864,7 +863,7 @@ bool Nl_policy::parse(const Buffer& b_, nlattr* attrs[], size_t n)
     while (b.size() > 0) {
         nlattr* nla = b.try_pull<nlattr>();
         if (!nla) {
-            log.warn("attribute shorter than NLA_HDRLEN (%zu)",
+            log.warn("attribute shorter than NLA_HDRLEN (%"PRIu16")",
                      b.size());
             return false;
         }

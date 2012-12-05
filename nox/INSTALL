@@ -5,9 +5,7 @@ minor markup)
 For the impatient:
 
     ./boot.sh
-    mkdir build/
-    cd build/
-    ../configure
+    ./configure --with-python=/path/to/python/2.5/ --with-openflow=/path/to/openflow
     make
     cd src
     make check

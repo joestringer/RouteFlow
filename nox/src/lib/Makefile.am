@@ -18,7 +18,6 @@ libnoxcore_la_SOURCES = \
 	async_io.cc \
 	auto_fd.cc \
 	buffer.cc \
-	cfg.cc \
 	command-line.cc \
 	errno_exception.cc \
 	event-dispatcher.cc \
@@ -27,26 +26,15 @@ libnoxcore_la_SOURCES = \
 	fault.cc \
 	flow.cc \
 	flow-stats-in.cc \
-	JSON_parser.c \
-	json_object.cc \
-	leak-checker.cc \
 	netinet++/ethernetaddr.cc \
-	network_graph.cc \
 	openflow-event.cc \
-	openflow-pack.cc \
-	openflow-pack-raw.cc \
-	openflow-action.cc \
 	openflow.cc \
 	packetgen.cc \
 	poll-loop.cc \
 	ppoll.cc \
-	queue-stats-in.cc \
-	queue-config-in.cc \
 	resolver.cc \
-	sha1.cc \
 	sigset.cc \
 	string.cc \
-	switch-mgr.cc \
 	ssl-config.cc \
 	ssl-socket.cc \
 	tcp-socket.cc \
@@ -57,7 +45,7 @@ libnoxcore_la_SOURCES = \
 	timer-dispatcher.cc \
 	timeval.cc \
 	dhparams.h \
-	json-util.cc
+	xml-util.cc
 
 nodist_libnoxcore_la_SOURCES = dhparams.c
 dhparams.c: dh1024.pem dh2048.pem dh4096.pem
@@ -79,21 +67,23 @@ libnoxcore_la_SOURCES += \
 	pcapreader.cc
 endif
 
-libnoxcore_la_LIBADD =							\
-	-lcrypto							\
-	-lpthread							\
-	$(PCAP_LDFLAGS)							\
-	$(SSL_LIBS)
-
-libnoxcore_la_LDFLAGS = $(AM_LDFLAGS) $(BOOST_LDFLAGS) 
+libnoxcore_la_LIBADD = -lpthread $(PCAP_LDFLAGS) $(SSL_LIBS)  -lcrypto -lxerces-c
+libnoxcore_la_LDFLAGS = $(AM_LDFLAGS) $(BOOST_LDFLAGS) $(XERCES_LDFLAGS)
 
 if PY_ENABLED
 libnoxcore_la_LIBADD += $(PYTHON_EXTRA_LDFLAGS) $(PYTHON_EXTRA_LIBS) $(PYTHON_LDFLAGS)
 endif
 
+if LOG4CXX_ENABLED
+libnoxcore_la_LIBADD +=
+libnoxcore_la_SOURCES +=				\
+	vlog-log4cxx.cc
+
+else
 libnoxcore_la_SOURCES +=				\
 	vlog.cc					\
 	vlog-socket.cc
+endif
 
 install-exec-hook:
 	@list='$(lib_LTLIBRARIES)'; for p in $$list; do \

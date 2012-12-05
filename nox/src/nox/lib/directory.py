@@ -177,7 +177,7 @@ class LocationQuery:
 
 
 class HostQuery:
-    VALID_KEYS = [ "dpid", "port", "dladdr", "nwaddr", "netname", "alias",
+    VALID_KEYS = [ "dpid", "port", "dladdr", "nwaddr", "alias",
                    "name", "is_gateway", "is_router", "name_glob" ]
     def __init__(self, str_dict):
       self.query_dict = {}
@@ -212,17 +212,11 @@ class HostQuery:
       
       if len(self.query_dict) != len(str_dict): 
         msg = "Invalid search key in query '%s'.  Valid keys are: %s" \
-              % (str_dict, self.VALID_KEYS)
+              % (str_dict, HostQuery.VALID_KEYS)
         raise Exception(msg)
 
     def get_query_dict(self): 
       return self.query_dict
-
-class HostNetNameQuery(HostQuery):
-    # HostNetName queries are essentially the same as a host query,
-    # where the 'name' attribute is equivalent to
-    # HostNetNameInfo.mangle_host_netname(hostname, netname)
-    VALID_KEYS = HostQuery.VALID_KEYS + ["hostname", "netname"]
 
 class UserQuery:
     VALID_KEYS = [ "name", "user_id", "user_real_name", "name_glob", 
@@ -267,7 +261,7 @@ class GroupQuery:
 
 # abstract base class for the *Info objects below
 # implements common parsing functionality 
-class PrincipalInfo(object):
+class PrincipalInfo:
 
     # converts object to a dictionary where the values are python types
     def to_dict(self):
@@ -334,20 +328,13 @@ class PasswordCredential(Credential):
                                       or 0 if does not expire
         password_update_epoch : int - last update time in seconds since epoch
                                       or 0 if never set
-        pw_hash_type          : int - type of hashing used for password storage
-        pw_salt               : str - salt used when hashing, if any
     """
-    PLAIN_TEXT = 0
-    HASH_MD5   = 1
-
     def __init__(self, password=None, password_update_epoch=None,
-            password_expire_epoch=None, pw_hash_type=None, pw_salt=None):
+            password_expire_epoch=None):
         Credential.__init__(self, Directory.AUTH_SIMPLE) 
         self.password              = password
         self.password_update_epoch = password_update_epoch
         self.password_expire_epoch = password_expire_epoch
-        self.pw_hash_type          = pw_hash_type
-        self.pw_salt               = pw_salt
 
     @staticmethod
     def from_str_dict(attr_dict):
@@ -359,14 +346,6 @@ class PasswordCredential(Credential):
         if 'password_update_epoch' in attr_dict:
             s.password_update_epoch = attr_dict['password_update_epoch']
         return s
-
-    def to_str_dict(self):
-        ret = {'type' : self.type}
-        if self.password_expire_epoch is not None:
-            ret['password_expire_epoch'] = str(self.password_expire_epoch)
-        if self.password_update_epoch is not None:
-            ret['password_update_epoch'] = str(self.password_update_epoch)
-        return ret
 
 class CertFingerprintCredential(Credential):
     """Credential holding the fingperint of a certificate 
@@ -523,7 +502,6 @@ class NetInfo(PrincipalInfo):
     """Network information component of a HostInfo record
 
     Network Attributes:
-        name       : str          - the network name of the binding
         dpid       : datapathid   - the datapathid of the switch
         port       : int          - the switch port in host byte order
         dladdr     : ethernetaddr - MAC address
@@ -560,48 +538,42 @@ class NetInfo(PrincipalInfo):
           n.is_gateway = attr_dict["is_gateway"].upper() == 'TRUE'
         else:
           n.is_gateway = False
-        n.name = attr_dict.get('name', '')
         return n
 
     # note, we need to special case almost everything b/c simply
     # calling str() won't work
     def to_str_dict(self):
-      ret = {}
-      if self.name:
-        ret['name'] = self.name.encode('utf-8')
-      else:
-        ret['name'] = ''
+      dict = {}
       if self.nwaddr is  not None:
         # ipaddr constructor expects host order
         nwaddr_obj = ipaddr(self.nwaddr)
-        ret['nwaddr'] = str(nwaddr_obj) 
+        dict['nwaddr'] = str(nwaddr_obj)
       if self.dladdr is not None: 
         dladdr_obj = ethernetaddr(self.dladdr)
-        ret['dladdr'] = str(dladdr_obj) 
+        dict['dladdr'] = str(dladdr_obj)
       if self.dpid is not None:
-        ret['dpid'] = str(self.dpid.as_host()) 
+        dict['dpid'] = str(self.dpid.as_host())
       if self.port is not None:
-        ret['port'] = str(self.port)
+        dict['port'] = str(self.port)
       if self.is_router is not None:
-        ret['is_router'] = str(self.is_router)
+        dict['is_router'] = str(self.is_router)
       if self.is_gateway is not None:
-        ret['is_gateway'] = str(self.is_gateway)
-      return ret
+        dict['is_gateway'] = str(self.is_gateway)
+      return dict
 
-    def __init__(self, dpid=None, port=None, dladdr=None,
-            nwaddr=None, is_router=False, is_gateway=False, name=None):
-        self.name       = name or ''
-        self.dpid       = dpid
-        self.port       = port
-        self.dladdr     = dladdr
-        self.nwaddr     = nwaddr
-        self.is_router  = is_router
+    def __init__(self, dpid=None, port=None, dladdr=None, nwaddr=None,
+            is_router=False, is_gateway=False):
+        self.dpid   = dpid
+        self.port   = port
+        self.dladdr = dladdr
+        self.nwaddr = nwaddr
+        self.is_router = is_router
         self.is_gateway = is_gateway
 
     def __str__(self):
-        return "NetInfo Object: [name=%s, dpid=%s, port=%s, dladdr=%s, " \
-               "nwaddr=%s is_router=%s, is_gateway=%s]" \
-               %(self.name, self.dpid, self.port, self.dladdr, self.nwaddr,
+        return "NetInfo Object: [dpid=%s, port=%s, dladdr=%s, nwaddr=%s " \
+               "is_router=%s, is_gateway=%s]" \
+               %(self.dpid, self.port, self.dladdr, self.nwaddr,
                self.is_router, self.is_gateway)
 
     @staticmethod
@@ -613,12 +585,6 @@ class NetInfo(PrincipalInfo):
         return 0
         
     def __cmp__(self, other):
-        if self.name != other.name:
-            if self._none_cmp(self.name, other.name) != 0:
-                return self._none_cmp(self.name, other.name)
-            if self.name.__lt__(other.name):
-                return -1
-            return 1
         if self.dpid != other.dpid:
             if self._none_cmp(self.dpid, other.dpid) != 0:
                 return self._none_cmp(self.dpid, other.dpid)
@@ -659,78 +625,6 @@ class NetInfo(PrincipalInfo):
         if set_count != 1:
             return False
         return True
-
-    def matches_query(self, query_dict):
-        if 'name' in query_dict and query_dict['name'] != self.name:
-            return False
-        if 'dpid' in query_dict and query_dict['dpid'] != self.dpid:
-            return False
-        if 'port' in query_dict and query_dict['port'] != self.port:
-            return False
-        if 'dladdr' in query_dict and query_dict['dladdr'] != self.dladdr:
-            return False
-        if 'nwaddr' in query_dict and query_dict['nwaddr'] != self.nwaddr:
-            return False
-        if 'is_router' in query_dict \
-                and query_dict['is_router'] != self.is_router:
-            return False
-        if 'is_gatewan' in query_dict \
-                and query_dict['is_gatewan'] != self.is_gatewan:
-            return False
-        return True
-
-class HostNetNameInfo(NetInfo):
-    """Network name information component of a HostInfo record
-    """
-    @staticmethod
-    def mangle_host_netname(hostname, netname):
-        return "%s^%s" %(hostname, netname)
-
-    @staticmethod
-    def demangle_host_netname(hostnetname):
-        if not hasattr(hostnetname, "split") or not '^' in hostnetname:
-            raise DirectoryException("Cannot demangle host netname '%s'"
-                    % hostnetname, DirectoryException.BADLY_FORMATTED_NAME)
-        return tuple(hostnetname.split('^', 1))
-
-    def __init__(self, hostname=None, netname=None):
-        self.hostname = hostname or ''
-        self.netname = netname or ''
-
-    def __getattribute__(self, name):
-        if name == 'name':
-            return self.mangle_host_netname(self.hostname, self.netname)
-        return object.__getattribute__(self, name)
-        raise AttributeError(item)
-
-    @staticmethod
-    def from_str_dict(attr_dict):
-        if not 'hostname' in attr_dict:
-            raise Exception("missing required hostname")
-        return HostNetNameInfo(attr_dict['hostname'],
-                               attr_dict.get('netname', ''))
-
-    def to_str_dict(self):
-        ret = super().to_str_dict()
-        ret['netname'] = self.netname.encode('utf-8')
-        ret['hostname'] = self.hostname.encode('utf-8')
-        ret['name'] = self.name.encode('utf-8')
-        return ret
-
-    def __cmp__(self, other):
-        if self.name != other.name:
-            if self._none_cmp(self.name, other.name) != 0:
-                return self._none_cmp(self.name, other.name)
-            if self.name.__lt__(other.name):
-                return -1
-            return 1
-        if self.hostname != other.hostname:
-            if self._none_cmp(self.hostname, other.hostname) != 0:
-                return self._none_cmp(self.hostname, other.hostname)
-            if self.hostname.__lt__(other.hostname):
-                return -1
-            return 1
-        return 0
 
 
 class HostInfo(PrincipalInfo):
@@ -832,7 +726,7 @@ class UserInfo(PrincipalInfo):
 
 
 class GroupInfo(PrincipalInfo):
-    """Information record for a Switch, Location, Host, or User group
+    """Information record for a Location, Host, or User group
 
     Group Attributes:
         name           : str       - unique group name
@@ -852,7 +746,7 @@ class GroupInfo(PrincipalInfo):
     def to_str_dict(self):
       ret = {}
       if self.name : ret['name'] = self.name.encode('utf-8')
-      if self.description is not None: ret['description'] = self.description
+      if self.description is not None: ret['descripton'] = self.description
       ret['member_names'] = []
       for member in self.member_names:
         if isinstance(member, cidr_ipaddr):
@@ -907,16 +801,14 @@ class Directory(Directory_Factory):
         self._enabled_auth_types = self.supported_auth_types()
 
         self._enabled_principals = {
-            Directory.SWITCH_PRINCIPAL       :
+            Directory.SWITCH_PRINCIPAL   :
                 self.principal_supported(Directory.SWITCH_PRINCIPAL),
-            Directory.LOCATION_PRINCIPAL     :
+            Directory.LOCATION_PRINCIPAL :
                 self.principal_supported(Directory.LOCATION_PRINCIPAL),
-            Directory.HOST_PRINCIPAL         :
+            Directory.HOST_PRINCIPAL     :
                 self.principal_supported(Directory.HOST_PRINCIPAL),
-            Directory.USER_PRINCIPAL         :
+            Directory.USER_PRINCIPAL     :
                 self.principal_supported(Directory.USER_PRINCIPAL),
-            Directory.HOST_NETNAME_PRINCIPAL :
-                self.principal_supported(Directory.HOST_NETNAME_PRINCIPAL),
         }
 
         self._enabled_groups = {
@@ -936,8 +828,6 @@ class Directory(Directory_Factory):
                 self.group_supported(Directory.DLADDR_GROUP),
             Directory.NWADDR_GROUP       :
                 self.group_supported(Directory.NWADDR_GROUP),
-            Directory.HOST_NETNAME_GROUP :
-                self.group_supported(Directory.HOST_NETNAME_GROUP),
         }
 
 
@@ -1223,8 +1113,6 @@ class Directory(Directory_Factory):
             return self.get_host(principal_name, *args, **vargs)
         elif principal_type == self.USER_PRINCIPAL:
             return self.get_user(principal_name, *args, **vargs)
-        elif principal_type == self.HOST_NETNAME_PRINCIPAL:
-            return self.get_host_netname(principal_name, *args, **vargs)
         else:
             raise NotImplementedError("get_principal does not support "\
                                       "principal type '%s'" %principal_type)
@@ -1242,8 +1130,6 @@ class Directory(Directory_Factory):
             return self.search_hosts(query_dict)
         elif principal_type == self.USER_PRINCIPAL:
             return self.search_users(query_dict)
-        elif principal_type == self.HOST_NETNAME_PRINCIPAL:
-            return self.search_host_netnames(query_dict)
         else:
             raise NotImplementedError("search_principals does not support "\
                                       "principal type '%s'" %principal_type)
@@ -1272,29 +1158,85 @@ class Directory(Directory_Factory):
         local_groups argument is only meaningful for directories supporting
         global groups (supports_global_groups() returns True)
         """
-        raise NotImplementedError("get_group_membership does not support "
-                                  "group type '%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.get_switch_group_membership(member_name, local_groups)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.get_location_group_membership(member_name,
+                    local_groups)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.get_host_group_membership(member_name, local_groups)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.get_user_group_membership(member_name, local_groups)
+        elif group_type == self.DLADDR_GROUP:
+            return self.get_dladdr_group_membership(member_name, local_groups)
+        elif group_type == self.NWADDR_GROUP:
+            return self.get_nwaddr_group_membership(member_name, local_groups)
+        else:
+            raise NotImplementedError("get_group_membership does not " \
+                                      "support group type '%s'" \
+                                      %group_type)
 
     def search_groups(self, group_type, query_dict):
         """Returns deferred returning list of group names
 
         Raises DirectoryException on invalid query parameter
         """
-        raise NotImplementedError("search_groups does not support group "
-                                  "type '%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.search_switch_groups(query_dict)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.search_location_groups(query_dict)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.search_host_groups(query_dict)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.search_user_groups(query_dict)
+        elif group_type == self.DLADDR_GROUP:
+            return self.search_dladdr_groups(query_dict)
+        elif group_type == self.NWADDR_GROUP:
+            return self.search_nwaddr_groups(query_dict)
+        else:
+            raise NotImplementedError("search_groups does not " \
+                                      "support group type '%s'" \
+                                      %group_type)
 
     def get_group(self, group_type, group_name):
         """Return deferred returning GroupInfo instance
         """
-        raise NotImplementedError("get_group does not support group type "
-                                  "'%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.get_switch_group(group_name)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.get_loc_group(group_name)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.get_host_group(group_name)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.get_user_group(group_name)
+        elif group_type == self.DLADDR_GROUP:
+            return self.get_dladdr_group(group_name)
+        elif group_type == self.NWADDR_GROUP:
+            return self.get_nwaddr_group(group_name)
+        else:
+            raise NotImplementedError("get_group does not support "\
+                                      "group type '%s'" %group_type)
 
     def get_group_parents(self, group_type, group_name):
         """Return deferred returning list of principal group names of
         which group_name is a direct subgroup.
         """
-        raise NotImplementedError("get_group_parents does not support group "
-                                  "type '%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.get_switch_group_parents(group_name)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.get_location_group_parents(group_name)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.get_host_group_parents(group_name)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.get_user_group_parents(group_name)
+        elif group_type == self.DLADDR_GROUP:
+            return self.get_dladdr_group_parents(group_name)
+        elif group_type == self.NWADDR_GROUP:
+            return self.get_nwaddr_group_parents(group_name)
+        else:
+            raise NotImplementedError("get_group_parents does not "\
+                                      "support group type '%s'"
+                                      %group_type)
 
     def add_group(self, group_type, group_info):
         """Creates new principal group
@@ -1304,8 +1246,21 @@ class Directory(Directory_Factory):
 
         Fails if principal group with same name already exists
         """
-        raise NotImplementedError("add_group does not support group type "
-                                  "'%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.add_switch_group(group_info)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.add_loc_group(group_info)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.add_host_group(group_info)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.add_user_group(group_info)
+        elif group_type == self.DLADDR_GROUP:
+            return self.add_dladdr_group(group_info)
+        elif group_type == self.NWADDR_GROUP:
+            return self.add_nwaddr_group(group_info)
+        else:
+            raise NotImplementedError("add_group does not support "\
+                                      "group type '%s'" %group_type)
 
     def modify_group(self, group_type, group_info):
         """Update description for group
@@ -1317,8 +1272,21 @@ class Directory(Directory_Factory):
 
         Returns deferred returning GroupInfo describing the updated group
         """
-        raise NotImplementedError("modify_group does not support group type "
-                                  "'%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.modify_switch_group(group_info)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.modify_loc_group(group_info)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.modify_host_group(group_info)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.modify_user_group(group_info)
+        elif group_type == self.DLADDR_GROUP:
+            return self.modify_dladdr_group(group_info)
+        elif group_type == self.NWADDR_GROUP:
+            return self.modify_nwaddr_group(group_info)
+        else:
+            raise NotImplementedError("modify_group does not support "\
+                                      "group type '%s'" %group_type)
 
     def rename_group(self, group_type, old_name, new_name):
         """Rename group named old_name to new_name
@@ -1328,8 +1296,21 @@ class Directory(Directory_Factory):
         Fails if group of type group_type with name same as new_name
         already exists
         """
-        raise NotImplementedError("rename_group does not support group type "
-                                  "'%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.rename_switch_group(group_name)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.rename_loc_group(group_name)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.rename_host_group(group_name)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.rename_user_group(group_name)
+        elif group_type == self.DLADDR_GROUP:
+            return self.rename_dladdr_group(group_name)
+        elif group_type == self.NWADDR_GROUP:
+            return self.rename_nwaddr_group(group_name)
+        else:
+            raise NotImplementedError("rename_group does not support "\
+                                      "group type '%s'" %group_type)
 
     def del_group(self, group_type, group_name):
         """Remove principal group and all membership records
@@ -1337,8 +1318,21 @@ class Directory(Directory_Factory):
         Returns deferred returning a GroupInfo object representing the
         deleted group
         """
-        raise NotImplementedError("del_group does not support group type "
-                                  "'%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.del_switch_group(group_name)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.del_loc_group(group_name)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.del_host_group(group_name)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.del_user_group(group_name)
+        elif group_type == self.DLADDR_GROUP:
+            return self.del_dladdr_group(group_name)
+        elif group_type == self.NWADDR_GROUP:
+            return self.del_nwaddr_group(group_name)
+        else:
+            raise NotImplementedError("del_group does not support "\
+                                      "group type '%s'" %group_type)
 
     def add_group_members(self, group_type, group_name,
             member_names=[], subgroup_names=[]):
@@ -1347,8 +1341,28 @@ class Directory(Directory_Factory):
         Returns deferred returning tuple containing the added member_names
         and subgroup_names
         """
-        raise NotImplementedError("add_group_members does not support group "
-                                  "type '%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.add_switch_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.add_loc_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.add_host_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.add_user_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.DLADDR_GROUP:
+            return self.add_dladdr_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.NWADDR_GROUP:
+            return self.add_nwaddr_group_members(group_name,
+                    member_names, subgroup_names)
+        else:
+            raise NotImplementedError("add_group_members does not "\
+                                      "support group type '%s'"\
+                                      %group_type)
 
     def del_group_members(self, group_type, group_name,
             member_names=[], subgroup_names=[]):
@@ -1358,8 +1372,28 @@ class Directory(Directory_Factory):
         Returns deferred returning tuple containing the deleted member_names
         and subgroup_names
         """
-        raise NotImplementedError("del_principal_group_members does not "
-                                  "support group type '%s'" %group_type)
+        if group_type == self.SWITCH_PRINCIPAL_GROUP:
+            return self.del_switch_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.LOCATION_PRINCIPAL_GROUP:
+            return self.del_loc_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.HOST_PRINCIPAL_GROUP:
+            return self.del_host_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.USER_PRINCIPAL_GROUP:
+            return self.del_user_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.DLADDR_GROUP:
+            return self.del_dladdr_group_members(group_name,
+                    member_names, subgroup_names)
+        elif group_type == self.NWADDR_GROUP:
+            return self.del_nwaddr_group_members(group_name,
+                    member_names, subgroup_names)
+        else:
+            raise NotImplementedError("del_principal_group_members does not "\
+                                      "support group type '%s'"\
+                                      %group_type)
 
     # -- 
     # Switches
@@ -1434,6 +1468,104 @@ class Directory(Directory_Factory):
         raise NotImplementedError("search_switches must be implemented in "\
                                   "subclass")
 
+    # --
+    # Switch Groups
+    # --
+    def get_switch_group_membership(self, switch_name=None, local_groups=None):
+        """Return deferred returning list of switch group names.
+
+        If switch_name is not specified, return all switch group names.
+
+        local_groups argument is only meaningful for directories supporting
+        global groups (supports_global_groups() returns True)
+        """
+        raise NotImplementedError("get_switch_group_membership must be "\
+                                  "implemented in subclass")
+
+    def search_switch_groups(self, query_dict):
+        """Returns deferred returning list of group names matching query.
+
+        Raises DirectoryException on invalid query parameter
+        """
+        raise NotImplementedError("search_switch_groups must be "\
+                                  "implemented in subclass")
+
+    def get_switch_group(self, switch_group_name):
+        """Return deferred returning GroupInfo instance
+        """
+        raise NotImplementedError("get_switch_group must be implemented "\
+                                  "in subclass")
+
+    def get_switch_group_parents(self, switch_group_name):
+        """Return deferred returning list of switch group names of
+        which switch_group_name is a direct subgroup.
+        """
+        raise NotImplementedError("get_switch_group_parents must be "\
+                                  "implemented in subclass")
+
+    def add_switch_group(self, switch_group_info):
+        """Creates new switch group
+
+        Returns deferred returning a GroupInfo object representing the
+        new group
+
+        Fails if switch group with same name already exists
+        """
+        raise NotImplementedError("add_switch_group must be implemented "\
+                                  "in subclass")
+
+    def modify_switch_group(self, switch_info):
+        """Update description for switch group
+
+        Fails if switch_info with same name does not exist
+
+        Note: member_names and subgroup_names are ignored; use
+              add/del_switch_group_members instead
+
+        Returns deferred returning GroupInfo describing the updated group
+        """
+        raise NotImplementedError("modify_switch_group must be implemented in "
+                                  "subclass")
+
+    def rename_switch_group(self, old_name, new_name):
+        """Rename switch group named old_name to new_name
+
+        Returns deferred
+
+        Fails if switch group with name same as new_name already exists
+        """
+        raise NotImplementedError("rename_switch_group must be implemented "\
+                                  "in subclass")
+
+    def del_switch_group(self, switch_group_name):
+        """Remove switch group and all membership records
+
+        Returns deferred returning a GroupInfo object representing the
+        deleted group
+        """
+        raise NotImplementedError("del_switch_group must be implemented "\
+                                  "in subclass")
+
+    def add_switch_group_members(self, switch_group_name, switch_names=None,
+            subgroup_names=None):
+        """Add switch names and switch subgroup names to switch group
+
+        Returns deferred returning tuple containing the added switch_names and
+        subgroup_names
+        """
+        raise NotImplementedError("add_switch_group_members must be "\
+                                  "implemented in subclass")
+
+    def del_switch_group_members(self, switch_group_name, switch_names,
+            subgroup_names):
+        """Remove switch names and subgroup_names from group switch_group_name
+
+        Returns deferred returning tuple containing the deleted switch_names
+        and subgroup_names
+        """
+        raise NotImplementedError("del_switch_group_members must be "\
+                                  "implemented in subclass")
+
     # -- 
     # Locations
     # -- 
@@ -1495,6 +1627,105 @@ class Directory(Directory_Factory):
         raise NotImplementedError("search_locations must be implemented in "\
                                   "subclass")
 
+    # --
+    # Location Groups
+    # --
+
+    def get_location_group_membership(self, loc_name=None, local_groups=None):
+        """Return deferred returning list of location group names.
+
+        If loc_name is not specified, return all location group names.
+
+        local_groups argument is only meaningful for directories supporting
+        global groups (supports_global_groups() returns True)
+        """
+        raise NotImplementedError("get_location_group_membership must be "\
+                                  "implemented in subclass")
+
+    def search_location_groups(self, query_dict):
+        """Returns deferred returning list of group names matching query.
+
+        Raises DirectoryException on invalid query parameter
+        """
+        raise NotImplementedError("search_location_groups must be "\
+                                  "implemented in subclass")
+
+    def get_location_group(self, loc_group_name):
+        """Return deferred returning GroupInfo instance
+        """
+        raise NotImplementedError("get_location group must be implemented "\
+                                  "in subclass")
+
+    def get_location_group_parents(self, location_group_name):
+        """Return deferred returning list of location group names of
+        which location_group_name is a direct subgroup.
+        """
+        raise NotImplementedError("get_location_group_parents must be "\
+                                  "implemented in subclass")
+
+    def add_location_group(self, loc_group_info):
+        """Creates new location group
+
+        Returns deferred returning a GroupInfo object representing the
+        new group
+
+        Fails if location group with same name already exists
+        """
+        raise NotImplementedError("add_location_group must be implemented "\
+                                  "in subclass")
+
+    def modify_location_group(self, location_info):
+        """Update description for location group
+
+        Fails if locaiton_info with same name does not exist
+
+        Note: member_names and subgroup_names are ignored; use
+              add/del_location_group_members instead
+
+        Returns deferred returning GroupInfo describing the updated group
+        """
+        raise NotImplementedError("modify_location_group must be implemented "
+                                  "in subclass")
+
+    def rename_location_group(self, old_name, new_name):
+        """Rename location group named old_name to new_name
+
+        Returns deferred
+
+        Fails if location group with name same as new_name already exists
+        """
+        raise NotImplementedError("rename_location_group must be implemented "\
+                                  "in subclass")
+
+    def del_location_group(self, loc_group_name):
+        """Remove location group and all membership records
+
+        Returns deferred returning a GroupInfo object representing the
+        deleted group
+        """
+        raise NotImplementedError("del_location_group must be implemented "\
+                                  "in subclass")
+
+    def add_location_group_members(self, loc_group_name, loc_names=None,
+            subgroup_names=None):
+        """Add location names and location subgroup names to location group
+
+        Returns deferred returning tuple containing the added loc_names and
+        subgroup_names
+        """
+        raise NotImplementedError("add_location_group_members must be "\
+                                  "implemented in subclass")
+
+    def del_location_group_members(self, loc_group_name, loc_names,
+            subgroup_names):
+        """Remove location names and subgroup names from group loc_group_name
+
+        Returns deferred returning tuple containing the deleted loc_names and
+        subgroup_names
+        """
+        raise NotImplementedError("del_location_group_members must be "\
+                                  "implemented in subclass")
+
     # -- 
     # Hosts
     # -- 
@@ -1553,6 +1784,105 @@ class Directory(Directory_Factory):
         """
         raise NotImplementedError("search_hosts must be implemented in "\
                                   "subclass")
+
+    # --
+    # Host Groups
+    # --
+
+    def get_host_group_membership(self, host_name=None, local_groups=None):
+        """Return deferred returning list of host group names.
+
+        If host_name is not specified, return all host group names.
+
+        local_groups argument is only meaningful for directories supporting
+        global groups (supports_global_groups() returns True)
+        """
+        raise NotImplementedError("get_host_group_membership must be "\
+                                  "implemented in subclass")
+
+    def search_host_groups(self, query_dict):
+        """Returns deferred returning list of group names matching query.
+
+        Raises DirectoryException on invalid query parameter
+        """
+        raise NotImplementedError("search_host_groups must be "\
+                                  "implemented in subclass")
+
+    def get_host_group(self, host_group_name):
+        """Return deferred returning GroupInfo instance
+        """
+        raise NotImplementedError("get_host_group must be implemented "\
+                                  "in subclass")
+
+    def get_host_group_parents(self, host_group_name):
+        """Return deferred returning list of host group names of
+        which host_group_name is a direct subgroup.
+        """
+        raise NotImplementedError("get_host_group_parents must be "\
+                                  "implemented in subclass")
+
+    def add_host_group(self, host_group_info):
+        """Creates new host group
+
+        Returns deferred returning a GroupInfo object representing the
+        new group
+
+        Fails if host group with same name already exists
+        """
+        raise NotImplementedError("add_host_group must be implemented "\
+                                  "in subclass")
+
+    def modify_host_group(self, host_info):
+        """Update description for host group
+
+        Fails if host_info with same name does not exist
+
+        Note: member_names and subgroup_names are ignored; use
+              add/del_host_group_members instead
+
+        Returns deferred returning GroupInfo describing the updated group
+        """
+        raise NotImplementedError("modify_host_group must be implemented "
+                                  "in subclass")
+
+    def rename_host_group(self, old_name, new_name):
+        """Rename host group named old_name to new_name
+
+        Returns deferred
+
+        Fails if host group with name same as new_name already exists
+        """
+        raise NotImplementedError("rename_host_group must be implemented "\
+                                  "in subclass")
+
+    def del_host_group(self, host_group_name):
+        """Remove host group and all membership records
+
+        Returns deferred returning a GroupInfo object representing the
+        deleted group
+        """
+        raise NotImplementedError("del_host_group must be implemented "\
+                                  "in subclass")
+
+    def add_host_group_members(self, host_group_name, host_names=None,
+            subgroup_names=None):
+        """Add host names and host subgroup names to host group
+
+        Returns deferred returning tuple containing the added host_names and
+        subgroup_names
+        """
+        raise NotImplementedError("add_host_group_members must be "\
+                                  "implemented in subclass")
+
+    def del_host_group_members(self, host_group_name, host_names=None,
+            subgroup_names=None):
+        """Remove host names and subgroup names from group host_group_name
+
+        Returns deferred returning tuple containing the deleted host_names and
+        subgroup_names
+        """
+        raise NotImplementedError("del_host_group_members must be "\
+                                  "implemented in subclass")
 
     # -- 
     # Users
@@ -1613,66 +1943,300 @@ class Directory(Directory_Factory):
         raise NotImplementedError("search_users must be implemented in "\
                                   "subclass")
 
-    # -- 
-    # HostNetNames
-    # -- 
+    # --
+    # User Groups
+    # --
 
-    def get_host_netname(self, host_netname_name):
-        """Get information for host_netname with name 'host_netname_name'
+    def get_user_group_membership(self, user_name=None, local_groups=None):
+        """Return deferred returning list of user group names.
 
-        Return deferred returning HostNetNameInfo instance or None if
-        host_netname_name does not exist
+        If user_name is not specified, return all user group names.
+
+        local_groups argument is only meaningful for directories supporting
+        global groups (supports_global_groups() returns True)
         """
-        def _parse_result(match):
-            if match:
-                return HostNetNameInfo(hname, nname)
-            return None
-        hname, nname = HostNetNameInfo.demangle_host_netname(host_netname_name)
-        d = self.search_principals(Directory.HOST_PRINCIPAL,
-                {'name' : hname, 'netname' : nname})
-        d.addCallback(_parse_result)
-        return d
+        raise NotImplementedError("get_user_group_membership must be "\
+                                  "implemented in subclass")
 
-    def search_host_netnames(self, query_dict):
-        """Return deferred returning list of host network names
+    def search_user_groups(self, query_dict):
+        """Returns deferred returning list of group names matching query.
 
         Raises DirectoryException on invalid query parameter
         """
-        def _get_hosts(matches):
-            dlist = [self.get_principal(Directory.HOST_PRINCIPAL, hname)
-                    for hname in matches]
-            return defer.DeferredList(dlist, fireOnOneErrback=True)
+        raise NotImplementedError("search_user_groups must be "\
+                                  "implemented in subclass")
 
-        def _check_netinfos(resultList):
-            ret = []
-            hosts = [kv[1] for kv in resultList]
-            niquery = query_dict.copy()
-            if 'name' in niquery: del niquery['name']
-            if 'netname' in niquery:
-                niquery['name'] = niquery['netname']
-                del niquery['netname']
-            for host in hosts:
-                if host is None:
-                  continue # a host may have disappeared between the 
-                           # the search_principals and get_principal calls
-                for ni in host.netinfos:
-                    if ni.matches_query(niquery):
-                        ret.append(HostNetNameInfo.mangle_host_netname(
-                                host.name, ni.name))
-            return ret
-        if 'name' in query_dict:
-            hname, nname = HostNetNameInfo.demangle_host_netname(
-                    query_dict.pop('name'))
-            if 'hostname' in query_dict and query_dict['hostname'] != hname:
-                return None
-            if 'netname' in query_dict and query_dict['netname'] != nname:
-                return None
-            query_dict['name'] = hname
-            query_dict['netname'] = nname
-        if 'hostname' in query_dict:
-            query_dict['name'] = query_dict.pop('hostname')
-        d = self.search_principals(Directory.HOST_PRINCIPAL, query_dict)
-        d.addCallback(_get_hosts)
-        d.addCallback(_check_netinfos)
-        return d
+    def get_user_group(self, user_group_name):
+        """Return deferred returning GroupInfo instance
+        """
+        raise NotImplementedError("get_user_group must be implemented "\
+                                  "in subclass")
+
+    def get_user_group_parents(self, user_group_name):
+        """Return deferred returning list of user group names of
+        which user_group_name is a direct subgroup.
+        """
+        raise NotImplementedError("get_user_group_parents must be "\
+                                  "implemented in subclass")
+
+    def add_user_group(self, user_group_info):
+        """Creates new user group
+
+        Returns deferred returning a GroupInfo object representing the
+        new group
+
+        Fails if user group with same name already exists
+        """
+        raise NotImplementedError("add_user_group must be implemented "\
+                                  "in subclass")
+
+    def modify_user_group(self, user_info):
+        """Update description for user group
+
+        Fails if user_info with same name does not exist
+
+        Note: member_names and subgroup_names are ignored; use
+              add/del_user_group_members instead
+
+        Returns deferred returning GroupInfo describing the updated group
+        """
+        raise NotImplementedError("modify_user_group must be implemented "
+                                  "in subclass")
+
+    def rename_user_group(self, old_name, new_name):
+        """Rename user group named old_name to new_name
+
+        Returns deferred
+
+        Fails if user group with name same as new_name already exists
+        """
+        raise NotImplementedError("rename_user_group must be implemented "\
+                                  "in subclass")
+
+    def del_user_group(self, user_group_name):
+        """Remove user group and all membership records
+
+        Returns deferred returning a GroupInfo object representing the
+        deleted group
+        """
+        raise NotImplementedError("del_user_group must be implemented "\
+                                  "in subclass")
+
+    def add_user_group_members(self, user_group_name, user_names=None,
+            subgroup_names=None):
+        """Add user names and user subgroup names to user group
+
+        Returns deferred returning tuple containing the added user_names and
+        subgroup_names
+        """
+        raise NotImplementedError("add_user_group_members must be "\
+                                  "implemented in subclass")
+
+    def del_user_group_members(self, user_group_name, user_names=None,
+            subgroup_names=None):
+        """Remove user named user_name from group user_group_name
+
+        Returns deferred returning tuple containing the deleted user_names and
+        subgroup_names
+        """
+        raise NotImplementedError("del_user_group_members must be "\
+                                  "implemented in subclass")
+
+    # --
+    # dladdr Groups
+    # --
+
+    def get_dladdr_group_membership(self, dladdr=None, local_groups=None):
+        """Return deferred returning list of dladdr group names.
+
+        If dladdr is not specified, return all dladdr group names.
+
+        local_groups argument is only meaningful for directories supporting
+        global groups (supports_global_groups() returns True)
+        """
+        raise NotImplementedError("get_dladdr_group_membership must be "\
+                                  "implemented in subclass")
+
+    def search_dladdr_groups(self, query_dict):
+        """Returns deferred returning list of group names matching query.
+
+        Raises DirectoryException on invalid query parameter
+        """
+        raise NotImplementedError("search_dladdr_groups must be "\
+                                  "implemented in subclass")
+
+    def get_dladdr_group(self, dladdr_group_name):
+        """Return deferred returning GroupInfo instance
+        """
+        raise NotImplementedError("get_dladdr_group must be implemented "\
+                                  "in subclass")
+
+    def get_dladdr_group_parents(self, dladdr_group_name):
+        """Return deferred returning list of dladdr group names of
+        which dladdr_group_name is a direct subgroup.
+        """
+        raise NotImplementedError("get_dladdr_group_parents must be "\
+                                  "implemented in subclass")
+
+    def add_dladdr_group(self, dladdr_group_info):
+        """Creates new dladdr group
+
+        Returns deferred returning a GroupInfo object representing the
+        new group
+
+        Fails if dladdr group with same name already exists
+        """
+        raise NotImplementedError("add_dladdr_group must be implemented "\
+                                  "in subclass")
+
+    def modify_dladdr_group(self, dladdr_info):
+        """Update description for dladdr group
+
+        Fails if dladdr_info with same name does not exist
+
+        Note: member_names and subgroup_names are ignored; use
+              add/del_dladdr_group_members instead
+
+        Returns deferred returning GroupInfo describing the updated group
+        """
+        raise NotImplementedError("modify_dladdr_group must be implemented "
+                                  "in subclass")
+
+    def rename_dladdr_group(self, old_name, new_name):
+        """Rename dladdr group named old_name to new_name
+
+        Returns deferred
+
+        Fails if dladdr group with name same as new_name already exists
+        """
+        raise NotImplementedError("rename_dladdr_group must be implemented "\
+                                  "in subclass")
+
+    def del_dladdr_group(self, dladdr_group_name):
+        """Remove dladdr_group_name group and all membership records
+
+        Returns deferred returning a GroupInfo object representing the
+        deleted group
+        """
+        raise NotImplementedError("del_dladdr_group must be implemented "\
+                                  "in subclass")
+
+    def add_dladdr_group_members(self, dladdr_group_name, dladdrs=None,
+            subgroup_names=None):
+        """Add dladdrs and dladdr subgroup names to dladdr group
+
+        Returns deferred returning tuple containing the added dladdrs and
+        subgroup_names
+        """
+        raise NotImplementedError("add_dladdr_group_members must be "\
+                                  "implemented in subclass")
+
+    def del_dladdr_group_members(self, dladdr_group_name, dladdrs,
+            subgroup_names):
+        """Remove dladdrs and subgroup_names from group dladdr_group_name
+
+        Returns deferred returning tuple containing the deleted dladdrs and
+        subgroup_names
+        """
+        raise NotImplementedError("del_dladdr_group_members must be "\
+                                  "implemented in subclass")
+
+    # --
+    # nwaddr Groups
+    # --
+
+    def get_nwaddr_group_membership(self, nwaddr=None, local_groups=None):
+        """Return deferred returning list of nwaddr group names.
+
+        If nwaddr is not specified, return all nwaddr group names.
+
+        local_groups argument is only meaningful for directories supporting
+        global groups (supports_global_groups() returns True)
+        """
+        raise NotImplementedError("get_nwaddr_group_membership must be "\
+                                  "implemented in subclass")
+
+    def search_nwaddr_groups(self, query_dict):
+        """Returns deferred returning list of group names matching query.
+
+        Raises DirectoryException on invalid query parameter
+        """
+        raise NotImplementedError("search_nwaddr_groups must be "\
+                                  "implemented in subclass")
+
+    def get_nwaddr_group(self, nwaddr_group_name):
+        """Return deferred returning GroupInfo instance
+        """
+        raise NotImplementedError("get_nwaddr_group must be implemented "\
+                                  "in subclass")
+
+    def get_nwaddr_group_parents(self, nwaddr_group_name):
+        """Return deferred returning list of nwaddr group names of
+        which nwaddr_group_name is a direct subgroup.
+        """
+        raise NotImplementedError("get_nwaddr_group_parents must be "\
+                                  "implemented in subclass")
+
+    def add_nwaddr_group(self, nwaddr_group_info):
+        """Creates new nwaddr group
+
+        Returns deferred returning a GroupInfo object representing the
+        new group
+
+        Fails if nwaddr group with same name already exists
+        """
+        raise NotImplementedError("add_nwaddr_group must be implemented "\
+                                  "in subclass")
+
+    def modify_nwaddr_group(self, nwaddr_info):
+        """Update description for nwaddr group
+
+        Fails if nwaddr_info with same name does not exist
+
+        Note: member_names and subgroup_names are ignored; use
+              add/del_nwaddr_group_members instead
+
+        Returns deferred returning GroupInfo describing the updated group
+        """
+        raise NotImplementedError("modify_nwaddr_group must be implemented "
+                                  "in subclass")
+
+    def rename_nwaddr_group(self, old_name, new_name):
+        """Rename nwaddr group named old_name to new_name
+
+        Returns deferred
+
+        Fails if nwaddr group with name same as new_name already exists
+        """
+        raise NotImplementedError("rename_nwaddr_group must be implemented "\
+                                  "in subclass")
+
+    def del_nwaddr_group(self, nwaddr_group_name):
+        """Remove nwaddr_group_name group and all membership records
+
+        Returns deferred returning a GroupInfo object representing the
+        deleted group
+        """
+        raise NotImplementedError("del_nwaddr_group must be implemented "\
+                                  "in subclass")
+
+    def add_nwaddr_group_members(self, nwaddr_group_name, nwaddrs=None,
+            subgroup_names=None):
+        """Add nwaddrs and nwaddr subgroup names to nwaddr group
+
+        Returns deferred returning tuple containing the added nwaddrs and
+        subgroup_names
+        """
+        raise NotImplementedError("add_nwaddr_group_members must be "\
+                                  "implemented in subclass")
+
+    def del_nwaddr_group_members(self, nwaddr_group_name, nwaddrs,
+            subgroup_names):
+        """Remove nwaddrs and subgroup_names from group nwaddr_group_name
+
+        Returns deferred returning tuple containing the deleted nwaddrs and
+        subgroup_names
+        """
+        raise NotImplementedError("del_nwaddr_group_members must be "\
+                                  "implemented in subclass")
 

@@ -26,6 +26,7 @@
 #define THREADS_COOPERATIVE_HH 1
 
 #include <assert.h>
+#include <stdint.h>
 #include <boost/noncopyable.hpp>
 #include "threads/task.hh"
 

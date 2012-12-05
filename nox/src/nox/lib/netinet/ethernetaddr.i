@@ -164,7 +164,3 @@ ethernetaddr *create_bin_eaddr(const char *data);
 ethernetaddr *create_eaddr(const char *str);
 ethernetaddr *create_eaddr(uint64_t id);
 ethernetaddr *create_eaddr(const ethernetaddr& addr);
-
-%include "std_list.i"
-
-%template(ethlist) std::list<ethernetaddr>;

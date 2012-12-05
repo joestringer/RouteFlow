@@ -43,12 +43,14 @@ struct Flow_removed_event
       public Flow_event,
       boost::noncopyable
 {
-    Flow_removed_event(datapathid datapath_id_, 
+    Flow_removed_event(datapathid datapath_id_,
+                       uint16_t priority_, uint8_t reason_,
                        uint32_t duration_sec_, uint32_t duration_nsec_,
 		       uint16_t idle_timeout_,
                        uint64_t packet_count_, uint64_t byte_count_,
 		       uint64_t cookie_)
-        : Event(static_get_name()), datapath_id(datapath_id_), 
+        : Event(static_get_name()), datapath_id(datapath_id_),
+          priority(priority_), reason(reason_),
           duration_sec(duration_sec_), duration_nsec(duration_nsec_),
 	  idle_timeout(idle_timeout_),
           packet_count(packet_count_), byte_count(byte_count_),
@@ -64,6 +66,10 @@ struct Flow_removed_event
 
     //! ID of switch sending the Flow Removed message 
     datapathid datapath_id;
+  // reason and priority
+  uint16_t priority;
+  uint8_t reason;
+
     //! Duration of the flow in seconds and nanoseconds
     uint32_t duration_sec;
     uint32_t duration_nsec;
@@ -94,6 +100,8 @@ Flow_removed_event::Flow_removed_event(datapathid datapath_id_,
     : Event(static_get_name()), Ofp_msg_event(&ofr->header, buf),
       datapath_id(datapath_id_)
 {
+  reason  = ofr->reason;
+  priority = ntohs(ofr->priority);
     cookie  = ntohll(ofr->cookie);
     duration_sec  = ntohl(ofr->duration_sec);
     duration_nsec = ntohl(ofr->duration_nsec);

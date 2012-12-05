@@ -1,4 +1,4 @@
-from nox.webapps.webservice  import webservice
+from nox.uiapps.coreui  import webservice
 from nox.lib.config   import version
 
 from nox.lib.core import *

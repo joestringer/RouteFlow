@@ -38,20 +38,18 @@ struct Host_event {
         DEAUTHENTICATION_EVENT,   // Remove reasons
         NWADDR_AUTO_REMOVE,       // want this?
         INTERNAL_LOCATION,
-        BINDING_CHANGE,
+        DLADDR_ATTR_CHANGE,
         HARD_TIMEOUT,
         IDLE_TIMEOUT,
         SWITCH_LEAVE,
         LOCATION_LEAVE,
-        HOST_DELETE,
-        HOST_NETID_DELETE
+        HOST_DELETE
     };
 
     static const char *get_reason_string(Reason reason);
 };
 
-/** \ingroup noxevents
- *
+/*
  * Host authentication/deauthentication event.
  *
  * Triggers a host auth/deauth at a location for a set of addresses.  On
@@ -83,26 +81,24 @@ struct Host_auth_event
     };
 
     enum Enabled_field {
-        EF_SWITCH        = 0x1 << 0,
-        EF_LOCATION      = 0x1 << 1,
-        EF_DLADDR        = 0x1 << 2,
-        EF_NWADDR        = 0x1 << 3,
-        EF_HOSTNAME      = 0x1 << 4,
-        EF_HOST_NETID  = 0x1 << 5,
-        EF_ALL           = (0x1 << 6) - 1
+        EF_SWITCH   = 0x1 << 0,
+        EF_LOCATION = 0x1 << 1,
+        EF_DLADDR   = 0x1 << 2,
+        EF_NWADDR   = 0x1 << 3,
+        EF_HOSTNAME = 0x1 << 4,
+        EF_ALL      = (0x1 << 5) - 1
     };
 
     // AUTHENTICATE constructor
     Host_auth_event(datapathid datapath_id_, uint16_t port_,
-                    ethernetaddr dladdr_, uint32_t nwaddr_, int64_t hostname_,
-                    int64_t host_netid_, uint32_t idle_timeout_,
-                    uint32_t hard_timeout_, Host_event::Reason reason_);
+                    ethernetaddr dladdr_, uint32_t nwaddr_, uint32_t hostname_,
+                    uint32_t idle_timeout_, uint32_t hard_timeout_,
+                    Host_event::Reason reason_);
 
     // DEAUTHENTICATE constructor
     Host_auth_event(datapathid datapath_id_, uint16_t port_,
-                    ethernetaddr dladdr_, uint32_t nwaddr_, int64_t hostname_,
-                    int64_t host_netid_, uint32_t enabled_fields_,
-                    Host_event::Reason reason_);
+                    ethernetaddr dladdr_, uint32_t nwaddr_, uint32_t hostname_,
+                    uint32_t enabled_fields_, Host_event::Reason reason_);
 
     // -- only for use within python
     Host_auth_event() : Event(static_get_name()) { }
@@ -116,8 +112,7 @@ struct Host_auth_event
     uint16_t            port;
     ethernetaddr        dladdr;
     uint32_t            nwaddr;         // set to zero if no IP to auth
-    int64_t             hostname;
-    int64_t             host_netid;
+    uint32_t            hostname;
     uint32_t            idle_timeout;
     uint32_t            hard_timeout;
     uint32_t            enabled_fields; // bit_mask of fields to observe
@@ -125,12 +120,12 @@ struct Host_auth_event
     Event               *to_post;       // event to post on auth completion
 };
 
-/** \ingroup noxevents
+/*
  * Host binding add/delete event.
  *
  * Advertises a binding as having been added/removed from a host's active set
  * of bindings. Posted for each mac address authenticated for a location, and
- * each network address authenticated for a mac address.  Includes the netid
+ * each network address authenticated for a mac address.  Includes the host
  * owning the binding.  If both the location and nwaddr are set to zero, then
  * signals a mac address binding.
  *
@@ -148,14 +143,12 @@ struct Host_bind_event
 
     // Location binding constructor
     Host_bind_event(Action action_, datapathid datapath_id_, uint16_t port_,
-                    int64_t switchname_, int64_t locname_,
-                    ethernetaddr dladdr_, int64_t hostname_, int64_t host_netid_,
+                    ethernetaddr dladdr_, uint32_t hostname_,
                     Host_event::Reason reason_);
 
     // Nwaddr binding constructor
     Host_bind_event(Action action_, ethernetaddr dladdr_, uint32_t nwaddr_,
-                    int64_t hostname_, int64_t host_netid_,
-                    Host_event::Reason reason_);
+                    uint32_t hostname_, Host_event::Reason reason_);
 
     // -- only for use within python
     Host_bind_event() : Event(static_get_name()) { }
@@ -167,16 +160,13 @@ struct Host_bind_event
     Action              action;
     datapathid          datapath_id;  // set to zero if dladdr or nwaddr binding
     uint16_t            port;
-    int64_t             switchname;
-    int64_t             locname;
     ethernetaddr        dladdr;       // should never be 0!
     uint32_t            nwaddr;       // set to zero if loc or dladdr binding
-    int64_t             hostname;
-    int64_t             host_netid;
+    uint32_t            hostname;
     Host_event::Reason  reason;
 };
 
-/** \ingroup noxevents
+/*
  * Host join/leave event.
  *
  * Advertises a host as having joined or left the network.  A host has 'joined'
@@ -200,7 +190,7 @@ struct Host_join_event
         LEAVE
     };
 
-    Host_join_event(Action action_, int64_t hostname_,
+    Host_join_event(Action action_, uint32_t hostname_,
                     Host_event::Reason reason_);
 
     // -- only for use within python
@@ -211,7 +201,7 @@ struct Host_join_event
     }
 
     Action              action;
-    int64_t             hostname;
+    uint32_t            hostname;
     Host_event::Reason  reason;
 };
 

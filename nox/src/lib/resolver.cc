@@ -16,28 +16,22 @@
  * along with NOX.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "resolver.hh"
-
 #include <cerrno>
 #include <netdb.h>
-
 #include "netinet++/ipaddr.hh"
-#include "threads/cooperative.hh"
 #include "vlog.hh"
 
 namespace vigil {
 
 static Vlog_module log("resolver");
 
-int get_host_by_name(const std::string& name, ipaddr& addr)
+void get_host_by_name(const std::string& name, Get_host_by_name_cb cb)
 {
-    Co_native_section as_native;
-
     in_addr a;
     if (inet_aton(name.c_str(), &a)) {
-	addr = ntohl(a.s_addr);
-	return 0;
-
+        cb(0, ntohl(a.s_addr));
     } else {
+        // FIXME: need to be asynchronous
         struct hostent* he = gethostbyname2(name.c_str(), AF_INET);
         if (!he) {
             log.warn("%s: gethostbyname: %s", name.c_str(),
@@ -46,16 +40,13 @@ int get_host_by_name(const std::string& name, ipaddr& addr)
                      : h_errno == NO_RECOVERY ? "unrecoverable error"
                      : h_errno == NO_ADDRESS ? "host has no address"
                      : "unknown error");
-	    addr = ipaddr();
-            return h_errno == HOST_NOT_FOUND ? ENOENT
+            cb((h_errno == HOST_NOT_FOUND ? ENOENT
                 : h_errno == TRY_AGAIN ? EINTR
                 : h_errno == NO_RECOVERY ? EIO
                 : h_errno == NO_ADDRESS ? ENODEV
-	        : EINVAL;
-
+                : EINVAL), ipaddr());
         } else {
-	    addr = *(uint32_t*) he->h_addr;
-	    return 0;
+            cb(0, ntohl(*(uint32_t*) he->h_addr));
         }
     }
 }

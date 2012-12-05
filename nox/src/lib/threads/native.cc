@@ -17,7 +17,6 @@
  */
 #include "threads/native.hh"
 #include <errno.h>
-#include <stdio.h>
 
 namespace vigil {
 

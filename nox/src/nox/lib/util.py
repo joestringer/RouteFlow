@@ -33,7 +33,6 @@ from   nox.lib.packet.vlan import vlan
 from   nox.lib.packet.ipv4 import ipv4 
 from   nox.lib.packet.udp import udp 
 from   nox.lib.packet.tcp import tcp 
-from   nox.lib.packet.icmp import icmp 
 
 from twisted.python import log
 
@@ -157,7 +156,6 @@ def gen_ds_in_cb(handler):
         stats['mfr_desc'] = event.mfr_desc
         stats['hw_desc'] = event.hw_desc
         stats['sw_desc'] = event.sw_desc
-        stats['dp_desc'] = event.dp_desc
         stats['serial_num'] = event.serial_num
         ret = f.cb(event.datapath_id, stats)
         if ret == None:
@@ -224,24 +222,6 @@ def gen_port_status_cb(handler):
     f.cb = handler
     return f
 
-def gen_switch_mgr_join_cb(handler):
-    def f(event):
-        ret = f.cb(event.mgmt_id)
-        if ret == None:
-            return CONTINUE
-        return ret
-    f.cb = handler
-    return f
-
-def gen_switch_mgr_leave_cb(handler):
-    def f(event):
-        ret = f.cb(event.mgmt_id)
-        if ret == None:
-            return CONTINUE
-        return ret
-    f.cb = handler
-    return f
-
 def set_match(attrs):
     m = openflow.ofp_match()
     wildcards = 0
@@ -260,7 +240,7 @@ def set_match(attrs):
         wildcards = wildcards | openflow.OFPFW_DL_VLAN
 
     if attrs.has_key(core.DL_VLAN_PCP):
-        m.dl_vlan_pcp = attrs[core.DL_VLAN_PCP]
+        m.dl_vlan_pcp = htons(attrs[core.DL_VLAN_PCP])
         num_entries += 1
     else:
         wildcards = wildcards | openflow.OFPFW_DL_VLAN_PCP
@@ -345,6 +325,7 @@ def set_match(attrs):
     else:
         wildcards = wildcards | openflow.OFPFW_NW_TOS
 
+
     if attrs.has_key(core.TP_SRC):
         m.tp_src = htons(attrs[core.TP_SRC])
         num_entries += 1
@@ -377,11 +358,9 @@ def extract_flow(ethernet):
 
     if isinstance(p, vlan):
         attrs[core.DL_VLAN] = p.id
-        attrs[core.DL_VLAN_PCP] = p.pcp
         p = p.next
     else:
         attrs[core.DL_VLAN] = 0xffff # XXX should be written OFP_VLAN_NONE
-        attrs[core.DL_VLAN_PCP] = 0
 
     if isinstance(p, ipv4):
         attrs[core.NW_SRC] = p.srcip
@@ -393,12 +372,8 @@ def extract_flow(ethernet):
             attrs[core.TP_SRC] = p.srcport
             attrs[core.TP_DST] = p.dstport
         else:
-            if isinstance(p, icmp):
-                attrs[core.TP_SRC] = p.type
-                attrs[core.TP_DST] = p.code
-            else:
-                attrs[core.TP_SRC] = 0
-                attrs[core.TP_DST] = 0
+            attrs[core.TP_SRC] = 0
+            attrs[core.TP_DST] = 0
     else:
         attrs[core.NW_SRC] = 0
         attrs[core.NW_DST] = 0

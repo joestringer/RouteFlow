@@ -37,12 +37,7 @@
 #include "openflow/openflow.h"
 #include "topology/topology.hh"
 
-
-namespace vigil {
-namespace applications {
-
-/** \ingroup noxcomponents
- *
+/*
  * Routing_module is a utility component that can be called to retrieve a
  * shortest path route and/or to set up flow entries in the network with
  * Openflow actions to route a flow.
@@ -60,6 +55,9 @@ namespace applications {
  * such as well.
  *
  */
+
+namespace vigil {
+namespace applications {
 
 class Routing_module
     : public container::Component {
@@ -85,7 +83,7 @@ public:
     typedef std::list<Nonowning_buffer> ActionList;
 
     Routing_module(const container::Context*,
-                   const json_object*);
+                   const xercesc::DOMNode*);
     // for python
     Routing_module();
     ~Routing_module() { }
@@ -137,28 +135,22 @@ public:
     bool setup_route(const Flow& flow, const Route& route, uint16_t inport,
                      uint16_t outport, uint16_t flow_timeout,
                      const ActionList& actions, bool check_nat,
-                     const GroupList *sdladdr_groups,
-                     const GroupList *snwaddr_groups,
-                     const GroupList *ddladdr_groups,
-                     const GroupList *dnwaddr_groups);
+                     const std::vector<uint32_t> *saddr_groups,
+                     const std::vector<uint32_t> *daddr_groups);
 
     bool setup_flow(const Flow& flow, const datapathid& dp,
                     uint16_t outport, uint32_t bid, const Buffer& buf,
                     uint16_t flow_timeout, const Buffer& actions,
                     bool check_nat,
-                    const GroupList *sdladdr_groups,
-                    const GroupList *snwaddr_groups,
-                    const GroupList *ddladdr_groups,
-                    const GroupList *dnwaddr_groups);
+                    const std::vector<uint32_t> *saddr_groups,
+                    const std::vector<uint32_t> *daddr_groups);
 
     bool send_packet(const datapathid& dp, uint16_t inport, uint16_t outport,
                      uint32_t bid, const Buffer& buf,
                      const Buffer& actions, bool check_nat,
                      const Flow& flow,
-                     const GroupList *sdladdr_groups,
-                     const GroupList *snwaddr_groups,
-                     const GroupList *ddladdr_groups,
-                     const GroupList *dnwaddr_groups);
+                     const std::vector<uint32_t> *saddr_groups,
+                     const std::vector<uint32_t> *daddr_groups);
 
 private:
     struct ridhash {
@@ -201,6 +193,7 @@ private:
 
     std::vector<const std::vector<uint64_t>*> nat_flow;
 
+    uint32_t xidcounter;
     uint16_t max_output_action_len;
     uint16_t len_flow_actions;
     uint32_t num_actions;

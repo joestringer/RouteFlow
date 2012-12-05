@@ -44,7 +44,7 @@ class Storage_test
 public:
 
     Storage_test(const Context* c,
-                      const json_object* xml) 
+                      const xercesc::DOMNode* xml)
         : Component(c), table("FOO"), counter(0) {
     }
 

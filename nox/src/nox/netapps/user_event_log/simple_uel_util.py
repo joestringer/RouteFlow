@@ -40,13 +40,10 @@ class SimpleUELUtil(Component):
     # make this function generate whatever type of log message you need
     # to test the UI.  By using the sh,dh,su,du,sl,dl params you can 
     # avoid having to actually create bindings in bindings storage
-    # Note: now that we use id's instead of names, you have to know
-    # a uid corresponding to the correct principal types, otherwise
-    # the name will show up as 'unknown' in the UI. 
     def do_log(self):
       self.uel.log("uel test",LogEntry.INFO,
                     "%s : {sh} is in trouble" % self.total_count, 
-                    sh=5) 
+                    sh="sepl_directory;host1")
       self.post_callback(1,self.do_log)
       self.total_count += 1
 

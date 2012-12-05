@@ -82,9 +82,7 @@ static string indent(string s) {
 }
 
 string
-Name_dependency::get_error_message(Kernel* kernel,
-                                   hash_set<Component_context*> ctxts_visited) 
-    const {
+Name_dependency::get_error_message(Kernel* kernel) const {
     Component_context* ctxt = kernel->get(name);
     if (!ctxt) {
         return "unmet dependency to '" + name + "': component not found!";
@@ -94,7 +92,7 @@ Name_dependency::get_error_message(Kernel* kernel,
         return "";
     }
 
-    return indent("\n" + ctxt->get_error_message(ctxts_visited));
+    return indent("\n" + ctxt->get_error_message());
 }
 
 Component_context::Component_context(Kernel* kernel_) 
@@ -224,23 +222,14 @@ Component_context::get_kernel() const {
 }
 
 string
-Component_context::get_error_message(hash_set<Component_context*> ctxts_visited)
-    const
-{
+Component_context::get_error_message() const {
     if (current_state == ERROR) {
         return "'" + name + "' ran into an error: " + 
             indent("\n" + error_message);
     }
 
-    if (ctxts_visited.find(const_cast<Component_context*>(this)) !=
-        ctxts_visited.end()) {
-        return "A circular component dependency detected.";
-    }
-
-    ctxts_visited.insert(const_cast<Component_context*>(this));
-
     BOOST_FOREACH(Dependency* d, dependencies) {
-        string err = d->get_error_message(kernel, ctxts_visited);
+        string err = d->get_error_message(kernel);
         if (err != "") {
             return "'" + name + "' has an unmet dependency: " + err;
         }
@@ -249,8 +238,8 @@ Component_context::get_error_message(hash_set<Component_context*> ctxts_visited)
     return "";
 }
 Kernel::Kernel(const std::string& info_file, int argc_, char** argv_) 
-    : argc(argc_), argv(argv_), state_requirements_changed(false),
-      installing(false), start_time(::time(0)) 
+    : argc(argc_), argv(argv_), state_requirements_changed(false), installing(false),
+      start_time(::time(0))
 {
     /* Create a new container info file, if necessary. */
     int fd = ::open(info_file.c_str(), O_RDWR | O_CREAT, S_IRWXU);
@@ -271,10 +260,9 @@ Kernel::Kernel(const std::string& info_file, int argc_, char** argv_)
             ::read(fd, &info.uuid, sizeof(UUID)) != sizeof(UUID)) {
             throw runtime_error("Unable to generate a random UUID.");
         }
-        info.uuid &= 0x7fffffffffffffffULL;
         ::close(fd);
 
-        lg.dbg("Assigned a new UUID for the container: %"PRIu64, info.uuid);
+        lg.dbg("Assigned a new UUID for the container: %lx", info.uuid);
     }
 
     /* Increment the counter and save the changes. */
@@ -315,11 +303,6 @@ Kernel::get_arguments(const Component_name& name) const {
 void 
 Kernel::attach_deployer(Deployer* deployer) {
     deployers.push_back(deployer);
-}
-
-Deployer_list
-Kernel::get_deployers() const {
-    return deployers;
 }
 
 Component_context* 
@@ -376,12 +359,7 @@ Kernel::install(Component_context* ctxt, const Component_state to) {
     }
 
     contexts[ctxt->get_name()] = ctxt;
-    
-    if (per_state.find(NOT_INSTALLED) == per_state.end()) {
-        per_state[NOT_INSTALLED] = new Component_context_vector();
-    }
-    
-    per_state[NOT_INSTALLED]->push_back(ctxt);
+    per_state[NOT_INSTALLED].insert(ctxt);
     
     change(ctxt, to);
 }
@@ -411,11 +389,10 @@ Kernel::change(Component_context* ctxt, const Component_state to)
         resolve();
 
         if (!get(ctxt->get_name(), to)) {
-            hash_set<Component_context*> c;
             throw state_change_error("Cannot change the state of '" + 
                                      ctxt->get_name() + "' to " + 
                                      get_state_string(to) + ":\n" + 
-                                     ctxt->get_error_message(c));
+                                     ctxt->get_error_message());
         }
     }
 }
@@ -439,43 +416,25 @@ Kernel::resolve() {
 
 bool
 Kernel::resolve(const Component_state from, const Component_state to) {
-    Component_context_vector* to_install = per_state[from];
-    Component_context_vector dependencies_resolved = resolve(*to_install, to);
+    Component_context_set& to_install = per_state[from];
+    Component_context_set dependencies_resolved = resolve(to_install, to);
     
     BOOST_FOREACH(Component_context* ctxt, dependencies_resolved) {
         ctxt->install(to);
-        for (Component_context_vector::iterator i = to_install->begin(); 
-             i != to_install->end(); ++i) {
-            if (*i != ctxt) continue;
-                
-            to_install->erase(i);
-            break;
-        }
-
-        if (per_state.find(ctxt->get_state()) == per_state.end()) {
-            per_state[ctxt->get_state()] = new Component_context_vector();
-        }
-
-        BOOST_FOREACH(Component_context* c, *to_install) {
-            assert(c != ctxt);
-        }
-        per_state[ctxt->get_state()]->push_back(ctxt);
+        to_install.erase(ctxt);
+        per_state[ctxt->get_state()].insert(ctxt);
     }
 
     return !dependencies_resolved.empty();
 }
 
-Component_context_vector
-Kernel::resolve(const Component_context_vector& contexts,
+Component_context_set
+Kernel::resolve(const Component_context_set& contexts,
                 const Component_state to) {
-    Component_context_vector resolved;
+    Component_context_set resolved;
 
-    for (int i = 0; i < contexts.size(); ++i) {
-        Component_context* ctxt = contexts[i];
-
-        if (ctxt->resolve(this, to)) { 
-            resolved.push_back(ctxt); 
-        }
+    BOOST_FOREACH(Component_context* ctxt, contexts) {
+        if (ctxt->resolve(this, to)) { resolved.insert(ctxt); }
     }
 
     return resolved;

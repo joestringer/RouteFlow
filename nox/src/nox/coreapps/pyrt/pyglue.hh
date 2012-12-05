@@ -37,8 +37,6 @@
 #include <boost/intrusive_ptr.hpp>
 #include <boost/shared_ptr.hpp>
 #include <map>
-
-#include "hash_set.hh"
 #include "pyrt.hh"
 #include "threads/cooperative.hh"
 #include "vlog.hh"
@@ -277,17 +275,9 @@ PyObject*
 to_python(const std::pair<A,B> p) {
 
   PyObject *t = PyTuple_New(2); 
-  if(!t) return 0;
-  PyObject *a = to_python(p.first);
-  PyObject *b = to_python(p.second);
-  if (!a || !b) {
-      Py_DECREF(t);
-      Py_XDECREF(a);
-      Py_XDECREF(b);
-      return 0;
-  }
-  PyTuple_SetItem(t,0,a);
-  PyTuple_SetItem(t,1,b);
+  if(!t) return NULL;
+  PyTuple_SetItem(t,0,to_python(p.first));
+  PyTuple_SetItem(t,1,to_python(p.second));
   return t; 
 } 
 
@@ -394,9 +384,6 @@ call_python_function (boost::intrusive_ptr<PyObject> callable, T arg)
     PyObject* carg    = to_python<T>(arg);
     PyObject* pyret   = 0; 
     PyObject* pyargs  = PyTuple_New(1);
-
-    assert(carg);
-    assert(pyargs);
 
     PyTuple_SetItem(pyargs, 0, carg);
     pyret = PyObject_CallObject(callable.get(), pyargs);

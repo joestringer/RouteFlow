@@ -51,7 +51,7 @@ class user_event_log_proxy{
     int get_max_logid();
     int get_min_logid();
     void set_max_num_entries(int num);  
-    PyObject* get_logids_for_name(int64_t id,int64_t type,PyObject* cb); 
+    PyObject* get_logids_for_name(const string &name,int type,PyObject* cb);
 
     PyObject *clear(PyObject *cb);
     PyObject *remove(int maxlogid, PyObject *cb);
@@ -62,8 +62,8 @@ class user_event_log_proxy{
     container::Component* c;
 
     void get_log_callback(int64_t logid, int64_t ts, const string &app, 
-            int level, const string &msg, const PrincipalList &src_names, 
-            const PrincipalList &dst_names, boost::intrusive_ptr<PyObject> cb); 
+            int level, const string &msg, const NameList &src_names,
+            const NameList &dst_names, boost::intrusive_ptr<PyObject> cb);
 
     void get_logids_callback(const list<int64_t> &logids, 
                                     boost::intrusive_ptr<PyObject> cb);

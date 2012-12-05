@@ -7,30 +7,39 @@ endif # PY_ENABLED
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I config
 EXTRA_DIST =	\
-	LICENSE								\
-	builtin/components.xsd						\
+	LICENSE					\
+	builtin/components.xsd			\
 	builtin/nox.xsd
-SUBDIRS = include lib builtin nox utilities tests etc
+SUBDIRS = include lib nox utilities tests etc
 
 bin_PROGRAMS = nox_core
 pkglib_LTLIBRARIES =
 
 AM_CPPFLAGS += -I$(srcdir)/nox
 
-nox_core_SOURCES = 							\
-	nox/component.hh						\
-	nox/deployer.hh							\
-	nox/dso-deployer.hh						\
-	nox/kernel.hh							\
-	nox/nox.hh							\
-	nox/packet-classifier.hh					\
-	nox/static-deployer.hh 						\
-	components.xsd.cc						\
-	nox.xsd.cc							\
-	nox_main.cc
+nox_core_SOURCES = 				\
+	components.xsd.cc			\
+	nox.xsd.cc				\
+	nox_main.cc				\
+	nox/component.hh			\
+	nox/deployer.hh				\
+	nox/dso-deployer.hh			\
+	nox/kernel.hh				\
+	nox/nox.hh				\
+	nox/packet-classifier.hh		\
+	nox/static-deployer.hh			\
+	builtin/deployer.cc			\
+	builtin/component.cc			\
+	builtin/dso-deployer.cc			\
+	builtin/event-dispatcher-component.cc	\
+	builtin/event-dispatcher-component.hh	\
+	builtin/kernel.cc			\
+	builtin/nox.cc				\
+	builtin/packet-classifier.cc		\
+	builtin/static-deployer.cc
 
-CLEANFILES =								\
-	components.xsd.cc						\
+CLEANFILES =					\
+	components.xsd.cc			\
 	nox.xsd.cc
 components.xsd.cc: builtin/components.xsd utilities/text2cc
 	$(srcdir)/utilities/text2cc					    \
@@ -43,18 +52,21 @@ nox.xsd.cc: builtin/nox.xsd utilities/text2cc
 		< $(srcdir)/builtin/nox.xsd				\
 		> nox.xsd.cc
 
-nox_core_LDFLAGS = 							\
-	$(AM_LDFLAGS) $(BOOST_LDFLAGS) 					\
-	$(BOOST_UNIT_TEST_FRAMEWORK_LIB) 				\
-	$(BOOST_FILESYSTEM_LIB) 					\
-	$(SSL_LIBS) -Wl,-E
-nox_core_LDADD = \
-	$(builddir)/builtin/.libs/libbuiltin.la \
-	$(builddir)/lib/libnoxcore.la \
-	$(LIBADD_DL) \
-	$(LDADD) 
-
+nox_core_LDFLAGS = $(AM_LDFLAGS) $(BOOST_LDFLAGS) 		\
+	$(BOOST_UNIT_TEST_FRAMEWORK_LIB) 			\
+	$(BOOST_FILESYSTEM_LIB) 				\
+	$(BOOST_SERIALIZATION_LIB) 				\
+	$(SSL_LIBS)                             		\
+	$(XERCES_LDFLAGS) -Wl,-E
+nox_core_LDADD = $(builddir)/lib/libnoxcore.la			\
+	$(LIBADD_DL)						\
+	$(LDADD)
 nox_core_DEPENDENCIES =
+
+if LOG4CXX_ENABLED
+nox_core_LDADD +=						\
+	$(builddir)/nox/thirdparty/apache-log4cxx/src/main/cpp/liblog4cxx.la
+endif
 
 if USE_LTDL
 nox_core_LDFLAGS += "-dlopen" force
@@ -96,5 +108,26 @@ nox_core_LDADD += -lltdl
 
 endif
 
+# Doesn't work with DESTDIR (breaks when creating deb package)
+#install-data-local:
+## Create DWH directories.
+#	$(mkinstalldirs) $(pkglocalstatedir)/import
+#	$(mkinstalldirs) $(pkglocalstatedir)/export
+#	$(mkinstalldirs) $(pkglocalstatedir)/loaded
+
+nox.test:
+	echo "#! $(SHELL)" >> $@.tmp
+	echo "exec ./nox_core tests" >> $@.tmp
+	chmod a+x $@.tmp
+	mv $@.tmp $@
+
+if HAVE_NETAPPS
+TESTS=nox.test
+else
+TESTS=
+endif
+
+clean-local:
+	-rm -f *.test
+
 install-exec-hook: nox-install-local
-clean-local: nox-clean-local

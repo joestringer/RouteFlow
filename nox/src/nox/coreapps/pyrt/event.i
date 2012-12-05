@@ -75,24 +75,6 @@ private:
     Datapath_leave_event();
 };
 
-struct Switch_mgr_join_event
-    : public Event
-{
-    static const std::string static_get_name();
-
-private:
-    Switch_mgr_join_event();
-};
-
-struct Switch_mgr_leave_event
-    : public Event
-{
-    static const std::string static_get_name();
-
-private:
-    Switch_mgr_leave_event();
-};
-
 struct Flow_removed_event
     : public Event
 {

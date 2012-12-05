@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components:components xmlns:components="http://www.noxrepo.org/components.xsd">
+  <component>
+    <name>sqlitelog</name>
+    <library>sqlitelog</library>
+    <dependency><name>storage backend</name></dependency>
+  </component>
+</components:components>

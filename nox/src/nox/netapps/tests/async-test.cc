@@ -41,7 +41,7 @@ class AsyncTestCase
 {
     public:
         AsyncTestCase(const Context* c,
-                const json_object* xml) 
+                const xercesc::DOMNode* xml)
             : Test_component(c) {
             }
 

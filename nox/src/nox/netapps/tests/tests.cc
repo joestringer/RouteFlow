@@ -34,6 +34,8 @@
 #include <iostream>
 #include <stdexcept>
 
+#include <xercesc/dom/DOM.hpp>
+
 #include "assert.hh"
 #include "bootstrap-complete.hh"
 #include "component.hh"
@@ -235,7 +237,7 @@ private:
 };  
 
 static Component* get_fixture_instance(PyObject* pyt, const Context* c, 
-                                       const json_object* xml) {
+                                       const xercesc::DOMNode* xml) {
     return new PyFixture(c, pyt);
 }
 
@@ -245,7 +247,7 @@ class Tests
     : public Component {
 public:
     Tests(const Context* c,
-          const json_object*) 
+          const xercesc::DOMNode*)
         : Component(c), stream(&std::cerr) {
     }
 

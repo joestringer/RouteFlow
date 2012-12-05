@@ -24,7 +24,8 @@ namespace vigil {
 
 class ipaddr;
 
-int get_host_by_name(const std::string& name, ipaddr& addr);
+typedef boost::function<void(int error, ipaddr)> Get_host_by_name_cb;
+void get_host_by_name(const std::string& name, Get_host_by_name_cb);
 
 } // namespace vigil
 

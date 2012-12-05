@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components:components xmlns:components="http://www.noxrepo.org/components.xsd">
+  <component>
+    <name>mobiledb</name>
+    <library>mobiledb</library>
+    <dependency><name>snmptrap</name></dependency>
+  </component>
+</components:components>

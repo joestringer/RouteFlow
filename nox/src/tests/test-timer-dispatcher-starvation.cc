@@ -23,7 +23,6 @@
 #include "timer-dispatcher.hh"
 #include <boost/bind.hpp>
 #include "threads/cooperative.hh"
-#include <cstdio>
 
 using namespace vigil;
 

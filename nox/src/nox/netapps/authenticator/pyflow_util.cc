@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -26,11 +26,12 @@ namespace applications {
 PyFlow_util::PyFlow_util(PyObject* ctxt)
     : flow_util(0)
 {
-    if (!SWIG_Python_GetSwigThis(ctxt) || !SWIG_Python_GetSwigThis(ctxt)->ptr) {
+    SwigPyObject* swigo = SWIG_Python_GetSwigThis(ctxt);
+    if (!swigo || !swigo->ptr) {
         throw std::runtime_error("Unable to access Python context.");
     }
 
-    c = ((PyContext*)SWIG_Python_GetSwigThis(ctxt)->ptr)->c;
+    c = ((PyContext*)swigo->ptr)->c;
 }
 
 void
@@ -56,11 +57,9 @@ PyFlow_util::set_action_argument(Flow_action& action,
         return false;
     }
 
-    Flow_action::C_func_t fn = { arg,
-                                 flow_util->fns.get_function
-                                 (arg, std::vector<std::string>(fn_args.begin(),
-                                                                fn_args.end())) } ;
-    if (fn.fn.empty()) {
+    Flow_fn_map::Flow_fn fn = flow_util->fns.get_function
+        (arg, std::vector<std::string>(fn_args.begin(), fn_args.end()));
+    if (fn.empty()) {
         return false;
     }
 

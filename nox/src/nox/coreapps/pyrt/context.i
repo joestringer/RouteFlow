@@ -44,18 +44,12 @@ namespace vigil {
 namespace applications {
 
 class PyContext {
-    %rename(send_openflow_buffer_port) send_openflow_buffer(
-            uint64_t datapath_id, uint32_t buffer_id,
-            uint16_t out_port, uint16_t in_port);
-    %rename(send_openflow_buffer_acts) send_openflow_buffer(
-            uint64_t datapath_id, uint32_t buffer_id,
-            const Nonowning_buffer& actions, uint16_t in_port);
     %rename(send_openflow_packet_port) send_openflow_packet(
             uint64_t datapath_id, const Nonowning_buffer&, 
             uint16_t out_port, uint16_t in_port);
     %rename(send_openflow_packet_acts) send_openflow_packet(
             uint64_t datapath_id, const Nonowning_buffer&,
-            const Nonowning_buffer& actions, uint16_t in_port);
+            const Nonowning_buffer&, uint16_t in_port);
 public:
     /*
      * Resolves a component interface description into a component
@@ -64,8 +58,6 @@ public:
     PyObject* resolve(PyObject*);
 
     Kernel*   get_kernel();
-
-    const char* get_version();
 
     void post(Event*);
 
@@ -112,11 +104,10 @@ public:
                     uint16_t mac_timeout=0);
     int send_del_snat(uint64_t dpid, uint16_t port);
 
-    uint32_t get_switch_controller_ip(uint64_t dpid); 
-    uint32_t get_switch_ip(uint64_t dpid); 
 
     void send_table_stats_request(uint64_t datapath_id);
-    void send_port_stats_request(uint64_t datapath_id, uint16_t port);
+    void send_port_stats_request(uint64_t datapath_id);
+    void send_port_stats_request_with_xid(uint64_t datapath_id, uint32_t xid); // added by dgu
     void send_desc_stats_request(uint64_t datapath_id);
     int  send_port_mod(uint64_t datapath_id, uint16_t port_no, 
                        ethernetaddr addr, uint32_t mask, uint32_t config);

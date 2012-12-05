@@ -30,18 +30,13 @@ namespace applications {
 class CSwitchStats
     : public container::Component 
 {
-    public:
-       
-        const static int TIMESLICE = 5000; // milliseconds
-
     protected:
 
-        hash_map<uint64_t, EventTracker>              tracker_map; 
-        hash_map<uint64_t, hash_map<uint64_t, bool> > switch_port_map; 
+        hash_map<uint64_t, EventTracker>           tracker_map;
+        hash_map<uint64_t, std::vector<uint64_t> > switch_port_map;
 
     public:
-
-        CSwitchStats(const container::Context*, const json_object*);
+        CSwitchStats(const container::Context*, const xercesc::DOMNode*);
 
         static void getInstance(const container::Context*, CSwitchStats*&);
 
@@ -55,7 +50,6 @@ class CSwitchStats
         Disposition handle_datapath_join(const Event&);
         Disposition handle_data_leave   (const Event&);
         Disposition handle_packet_in    (const Event& e);
-        Disposition handle_port_status  (const Event& e);
 
         void test_print_averages();
 };

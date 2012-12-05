@@ -1,4 +1,4 @@
-# Copyright 2008, 2009 (C) Nicira, Inc.
+# Copyright 2008 (C) Nicira, Inc.
 # 
 # This file is part of NOX.
 # 
@@ -15,4 +15,5 @@
 # You should have received a copy of the GNU General Public License
 # along with NOX.  If not, see <http://www.gnu.org/licenses/>.
 from nox.netapps.storage.storage import *
+from nox.netapps.storage.transactional_storage import *
 

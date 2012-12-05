@@ -1,0 +1,38 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+	<xs:simpleType name='hexadecimal'>
+		<xs:restriction base='xs:string'>
+			<xs:minLength value="1"/>
+			<xs:pattern value="([0-9A-Fa-f])*" />
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name='hex64'>
+		<xs:restriction base='hexadecimal'>
+			<xs:maxLength value="16"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name='hex48'>
+		<xs:restriction base='hexadecimal'>
+			<xs:maxLength value="6"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name='hex32'>
+		<xs:restriction base='hexadecimal'>
+			<xs:maxLength value="8"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name='hex16'>
+		<xs:restriction base='hexadecimal'>
+			<xs:maxLength value="4"/>
+		</xs:restriction>
+	</xs:simpleType>
+
+	<xs:simpleType name='hex8'>
+		<xs:restriction base='hexadecimal'>
+			<xs:maxLength value="2"/>
+		</xs:restriction>
+	</xs:simpleType>
+</xs:schema>

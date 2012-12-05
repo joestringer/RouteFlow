@@ -46,7 +46,7 @@ static Vlog_module log("flow");
 static const struct arp_eth_header* 
 pull_arp(Buffer& b)
 {
-    if (b.size() >= ARP_ETH_HEADER_LEN) {
+    if (b.size() > ARP_ETH_HEADER_LEN) {
         return reinterpret_cast<const arp_eth_header*>(b.try_pull(ARP_ETH_HEADER_LEN));
     }
     return 0;
@@ -100,63 +100,35 @@ pull_vlan(Buffer& b)
     return b.try_pull<vlan_header>();
 }
 
-  Flow::Flow(const ofp_match& match, uint64_t cookie_) 
+Flow::Flow(const ofp_match& match)
     : in_port(match.in_port), dl_vlan(match.dl_vlan), 
       dl_vlan_pcp(match.dl_vlan_pcp), 
       dl_src(), dl_dst(), dl_type(match.dl_type),
       nw_src(match.nw_src), nw_dst(match.nw_dst), 
       nw_proto(match.nw_proto), nw_tos(match.nw_tos),
-      tp_src(match.tp_src), tp_dst(match.tp_dst), cookie(cookie_)
+      tp_src(match.tp_src), tp_dst(match.tp_dst)
 {
     memcpy(dl_src.octet, match.dl_src, ethernetaddr::LEN);
     memcpy(dl_dst.octet, match.dl_dst, ethernetaddr::LEN);
 }
 
-  Flow::Flow(const ofp_match* match, uint64_t cookie_) 
+Flow::Flow(const ofp_match* match)
     : in_port(match->in_port), dl_vlan(match->dl_vlan), 
       dl_vlan_pcp(match->dl_vlan_pcp), 
       dl_src(), dl_dst(), dl_type(match->dl_type),
       nw_src(match->nw_src), nw_dst(match->nw_dst), 
       nw_proto(match->nw_proto), nw_tos(match->nw_tos),
-      tp_src(match->tp_src), tp_dst(match->tp_dst),
-      cookie(cookie_)
+      tp_src(match->tp_src), tp_dst(match->tp_dst)
 {
     memcpy(dl_src.octet, match->dl_src, ethernetaddr::LEN);
     memcpy(dl_dst.octet, match->dl_dst, ethernetaddr::LEN);
 }
 
-const of_match Flow::get_exact_match() const
-{
-    of_match om;
-    om.wildcards = ntohl(0);
-    om.in_port = ntohs(in_port);
-    memcpy(om.dl_src, dl_src.octet, ethernetaddr::LEN);
-    memcpy(om.dl_dst, dl_dst.octet, ethernetaddr::LEN);
-    om.dl_vlan = ntohs(dl_vlan);
-    om.dl_vlan_pcp = dl_vlan_pcp;
-    om.dl_type = ntohs(dl_type);
-    om.nw_tos = nw_tos;
-    om.nw_proto = nw_proto;
-    om.nw_src = ntohl(nw_src);
-    om.nw_dst = ntohl(nw_dst);
-    om.tp_src = ntohs(tp_src);
-    om.tp_dst = ntohs(tp_dst);
-    return om;
-}
-
-  Flow::Flow(const Flow& flow, uint64_t cookie_):
-    in_port(flow.in_port), dl_vlan(flow.dl_vlan), dl_vlan_pcp(flow.dl_vlan_pcp), 
-    dl_src(flow.dl_src), dl_dst(flow.dl_dst), dl_type(flow.dl_type),
-    nw_src(flow.nw_src), nw_dst(flow.nw_dst), 
-    nw_proto(flow.nw_proto), nw_tos(flow.nw_tos),
-    tp_src(flow.tp_src), tp_dst(flow.tp_dst), cookie(cookie_)
-{ }
-
-Flow::Flow(uint16_t in_port_, const Buffer& buffer, uint64_t cookie_)
+Flow::Flow(uint16_t in_port_, const Buffer& buffer)
     : in_port(in_port_),
       dl_vlan(), dl_vlan_pcp(0), dl_src(), dl_dst(), dl_type(0),
       nw_src(0), nw_dst(0), nw_proto(0), nw_tos(0),
-      tp_src(0), tp_dst(0), cookie(cookie_)
+      tp_src(0), tp_dst(0)
 {
     dl_vlan = htons(OFP_VLAN_NONE);
 
@@ -191,8 +163,8 @@ Flow::Flow(uint16_t in_port_, const Buffer& buffer, uint64_t cookie_)
             if (vh) {
                 dl_type = vh->vlan_next_type;
                 dl_vlan = vh->vlan_tci & htons(VLAN_VID);
-                dl_vlan_pcp =(ntohs(vh->vlan_tci) & VLAN_PCP_MASK) >> 
-		  VLAN_PCP_SHIFT;
+                dl_vlan_pcp = (vh->vlan_tci & htons(VLAN_PCP_MASK)) >>
+                    VLAN_PCP_SHIFT;
             }
         }
         memcpy(dl_src.octet, eth->eth_src, ETH_ADDR_LEN);
@@ -310,26 +282,4 @@ Flow::hash_code() const
     return *((uint64_t*)md);
 }
 
-bool operator==(const Flow& lhs, const Flow& rhs)
-{
-  return (lhs.in_port == rhs.in_port) &&
-    (lhs.dl_vlan == rhs.dl_vlan) &&
-    (lhs.dl_vlan_pcp == rhs.dl_vlan_pcp) &&
-    (lhs.dl_src == rhs.dl_src) &&
-    (lhs.dl_dst == rhs.dl_dst) &&
-    (lhs.dl_type == rhs.dl_type) &&
-    (lhs.nw_src == rhs.nw_src) &&
-    (lhs.nw_dst == rhs.nw_dst) &&
-    (lhs.nw_proto == rhs.nw_proto) &&
-    (lhs.nw_tos == rhs.nw_tos) &&
-    (lhs.tp_src == rhs.tp_src) &&
-    (lhs.tp_dst == rhs.tp_dst);
-}
-
-bool operator!=(const Flow& lhs, const Flow& rhs)
-{
-  return !(lhs == rhs);
-}
-
 } // namespace vigil
-

@@ -4,6 +4,7 @@
 #include "async_io.hh"
 #include <errno.h>
 #include "errno_exception.hh"
+#include <xercesc/dom/DOM.hpp>
 #include "vlog.hh"
 #include "assert.hh"
 
@@ -14,95 +15,45 @@ namespace vigil
   static Vlog_module lg("messenger_core");
   static const std::string app_name("messenger_core");
  
+
   Msg_stream::Msg_stream(Async_stream* stream_):
-    stream(stream_), magic(NULL)
+    stream(stream_)
   {};
  
   Msg_stream::Msg_stream(Async_stream* stream_, bool isSSL_):
-    stream(stream_), isSSL(isSSL_), magic(NULL)
+    stream(stream_), isSSL(isSSL_)
   {};
 
 
-  Msg_stream::Msg_stream(Msg_stream& stream_):
-    magic(NULL)
+  Msg_stream::Msg_stream(Msg_stream& stream_)
   {
     stream =stream_.stream;
     isSSL = stream_.isSSL;
   }
 
-  void Msg_stream::init(boost::shared_array<uint8_t>& msg_raw, 
-			       ssize_t size) const
-  {
-    msg_raw.reset(new uint8_t[size]);
-  }
-
-
-  void Msg_stream::init(boost::shared_array<uint8_t>& msg_raw, 
-			       const char* str, 
-			       ssize_t size, bool addbraces) const
-  {
-    if (size == 0)
-    {
-      size = strlen(str)+1;
-      if (addbraces)
-	size += 2;
-    }
-    msg_raw.reset(new uint8_t[size]);
-    char* msg = (char*) msg_raw.get();
-    if (addbraces)
-    {
-      msg[0] = '{';
-      strcpy(msg+1, str); 
-      msg[size-2] = '}';
-    }
-    else
-      strcpy(msg, str); 
-    msg[size-1] = '\0';
-  }
-
-  void Msg_stream::send(boost::shared_array<uint8_t>& msg,
-			       ssize_t size) const
-  {
-    Nonowning_buffer buf(msg.get(), size);
-    stream->write(buf, 0);
-    VLOG_DBG(lg, "Sent message %p of length %zu socket %p",
-	     msg.get(), size, stream);
-  }
-
-  void Msg_stream::send(const std::string& str) const
-  {
-    Nonowning_buffer buf(str.c_str(), str.size());
-    stream->write(buf, 0);
-    VLOG_DBG(lg, "Sent string of length %zu socket %p",
-	     str.size(), stream);
-  }
-
-  core_message::core_message(Msg_stream* socket)
-  {
-    sock = socket;
-  }
-
-  core_message::core_message(uint8_t* message, Msg_stream* socket, 
-			     ssize_t size)
+  Msg_event::Msg_event(messenger_msg* message, Msg_stream* socket):
+    Event(static_get_name())
   {
     sock = socket;
 
     //Allocate memory and copy message
-    len = size;
+    ssize_t size = ntohs(message->length);
     raw_msg.reset(new uint8_t[size]);
     memcpy(raw_msg.get(), message, size);
+    msg = (messenger_msg*) raw_msg.get();
     VLOG_DBG(lg, "Received packet of length %zu", size);
   }
 
-  core_message::~core_message()
+  Msg_event::~Msg_event()
   {  }
 
-  void core_message::dumpBytes()
+  void Msg_event::dumpBytes()
   {
-    uint8_t* readhead =  (uint8_t*) raw_msg.get();
-    fprintf(stderr,"core_message of size %zu\n\t",
-	    len);
-    for (int i = 0; i < len; i++)
+    uint8_t* readhead =  (uint8_t*) msg;
+    ssize_t currSize = ntohs(*((uint16_t*) msg));
+    fprintf(stderr,"messenger_core Msg_event of size %zu\n\t",
+	    currSize);
+    for (int i = 0; i < currSize; i++)
     {
       fprintf(stderr, "%"PRIx8" ", *readhead);
       readhead++;
@@ -112,6 +63,7 @@ namespace vigil
 
   void messenger_core::configure(const Configuration* config)
   {
+    register_event(Msg_event::static_get_name());
   }
   
   void messenger_core::getInstance(const container::Context* ctxt, 
@@ -206,7 +158,7 @@ namespace vigil
       new messenger_ssl_connection(msger, new_socket);
     }
     if (!error)
-      lg.err("messenger SSL accept: %d",error);
+    lg.err("messenger SSL accept: %d",error);
   }
     
   messenger_tcp_connection::messenger_tcp_connection(message_processor* messenger, 
@@ -214,8 +166,6 @@ namespace vigil
      messenger_connection(messenger), sock(new_socket)
   { 
     msgstream=new Msg_stream(sock.get(), false);
-    if (messenger->newConnectionMsg)
-      send_new_connection_msg(msgstream);
     start(boost::bind(&messenger_tcp_connection::run, this));
   }
     
@@ -233,13 +183,6 @@ namespace vigil
       sock->read_wait();
       co_block();
       dataSize = sock->read(buf, false);
-      if (dataSize <= 0)
-      {
-	//Terminating disconnected connection
-	post_disconnect(msgstream);
-	running = false;
-        break;
-      }
       processBlock(buf, dataSize,msgstream);
     }
 
@@ -254,8 +197,6 @@ namespace vigil
     messenger_connection(messenger), sock(new_socket)
   { 
     msgstream=new Msg_stream(sock.get(), false);
-    if (messenger->newConnectionMsg)
-      send_new_connection_msg(msgstream);
     start(boost::bind(&messenger_ssl_connection::run, this));
   }
 
@@ -273,13 +214,6 @@ namespace vigil
       sock->read_wait();
       co_block();
       dataSize = sock->read(buf, false);
-      if (dataSize <= 0)
-      {
-	//Terminating disconnected connection
-	post_disconnect(msgstream);
-	running = false;
-        break;
-      }
       processBlock(buf, dataSize,msgstream);
     }
 
@@ -306,22 +240,23 @@ namespace vigil
     }
   }
 
-  void messenger_connection::send_new_connection_msg(Msg_stream* sock)
-  {
-    process(new core_message(sock), message_processor::msg_code_new_connection);
-  }
-
   void messenger_connection::check_idle()
   {
-    VLOG_DBG(lg, "Check idle at interval %"PRIx16"",
-	     msger->idleInterval);
+    //VLOG_DBG(lg, "Check idle at interval %"PRIx16"",
+    //msger->idleInterval);
 
     if (time(NULL)-lastActiveTime > msger->idleInterval)
     {
       if (echoMissed >= msger->thresholdEchoMissed)
       {
 	VLOG_WARN(lg, "Connection terminated due to idle");
-	post_disconnect(msgstream);
+	//Terminating idle connection
+	messenger_msg* msgbuf = (messenger_msg*) &internalrecvbuf;
+	msgbuf->length = htons(3);
+	msgbuf->type = MSG_DISCONNECT;
+	process(new Msg_event((messenger_msg*) internalrecvbuf,
+			      msgstream));
+
 	running = false;
 	msgstream->stream->close();
 	endpointer = &internalrecvbuf[0];
@@ -331,7 +266,7 @@ namespace vigil
       {
 	//Send echo
 	echoMissed++;
-	msger->send_echo(msgstream);
+	msger->send_echo(msgstream->stream);
       }
     }
 
@@ -342,16 +277,11 @@ namespace vigil
     }
   }
 
-  void messenger_connection::post_disconnect(Msg_stream* sock)
-  {
-    process(new core_message(sock), message_processor::msg_code_disconnection);
-  }
-
   void messenger_connection::processBlock(Array_buffer& buf, ssize_t& dataSize, 
 					  Msg_stream* sock)
   {
     uint8_t* dataPointer = buf.data();
-    ssize_t cpSize;
+    uint16_t* lenPointer = (uint16_t*) &internalrecvbuf[0];
 
     if (dataSize > MESSENGER_BUFFER_SIZE)
       VLOG_WARN(lg, "Read buffer insufficient, check MESSENGER_BUFFER_SIZE in messenger.hh");
@@ -359,27 +289,21 @@ namespace vigil
     //Copy message into buffer.
     while (dataSize > 0)
     {
-      cpSize=msger->processBlock(dataPointer,dataSize,
-				 &internalrecvbuf[0],currSize, sock);      
-      if ((currSize+cpSize) > MESSENGER_MAX_MSG_SIZE)
+      memcpy(endpointer,dataPointer,1);
+      endpointer++;
+      dataPointer++;
+      dataSize--;
+      currSize++;
+      if (currSize > MESSENGER_MAX_MSG_SIZE)
 	VLOG_WARN(lg, "Message buffer insufficient, check MESSENGER_MAX_MSG_SIZE in messenger.hh");
-      else
-	VLOG_DBG(lg, "Copy %zu bytes to message",cpSize);
-
-      memcpy(endpointer,dataPointer,cpSize);
-      endpointer+=cpSize;
-      dataPointer+=cpSize;
-      dataSize-=cpSize;
-      currSize+=cpSize;
 
       //End of message
-      if ((currSize > 0) &&
-	  msger->msg_complete(&internalrecvbuf[0],currSize, sock))
+      if ((currSize == ntohs(*lenPointer)) && currSize > 2)
       {
 	if (MESSENGER_BYTE_DUMP)
         {
-	  fprintf(stderr,"messenger_core message of size %zu\n\t", 
-		  currSize);
+	  fprintf(stderr,"messenger_core message of size %zu %"PRIx16"\n\t",
+		  currSize, ntohs(*lenPointer));
 	  uint8_t* readhead =  internalrecvbuf;
 	  for (int i = 0; i < currSize; i++)
 	  {
@@ -389,20 +313,26 @@ namespace vigil
 	  fprintf(stderr,"\n");
 	}
 
-	process(new core_message((uint8_t*) internalrecvbuf, sock,
-				 currSize));
+	process(new Msg_event((messenger_msg*) internalrecvbuf, sock));
 	endpointer = &internalrecvbuf[0];
 	currSize=0;
       }
     }
   }
 
-  void messenger_connection::process(const core_message* msg, int code)
+  void messenger_connection::process(const Msg_event* msg)
   {
     lastActiveTime = time(NULL);
     echoMissed = 0;
 
-    msger->process(msg,code);
+    switch (((Msg_event*)msg)->msg->type)
+    {
+    case MSG_DISCONNECT:
+      running = false;
+      VLOG_DBG(lg, "Received disconnection request");
+    default:
+      msger->process(msg);
+    }
   }
 
 } // namespace vigil

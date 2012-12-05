@@ -20,13 +20,8 @@
 #include <cassert>
 #include <cstdlib>
 #include "type-props.h"
-#include "vlog.hh"
 
 #define NOT_TESTED() ((void) 0) /* XXX should print a message. */
-
-namespace vigil {
-    static Vlog_module lg("timeval");
-}
 
 /* POSIX allows floating-point time_t, but we don't support it. */
 BOOST_STATIC_ASSERT(TYPE_IS_INTEGER(time_t));
@@ -79,22 +74,15 @@ const ::timeval&
 operator-=(::timeval& x, const ::timeval& y)
 {
     /* A time_t, and hence a timeval, cannot necessarily hold a negative
-     * value, so for compatibility when time goes backward (NTP, etc.)  
-     * we set a floor of zero for the subtraction. */
-    if (x <= y) {
-        vigil::lg.warn("Returning 0 in place of negative timeval");
-        x.tv_sec = 0;
-        x.tv_usec = 0;
-    }
-    else {
-        assert(x >= y);
-        if (x.tv_usec >= y.tv_usec) {
-            x.tv_usec -= y.tv_usec;
-            x.tv_sec -= y.tv_sec;
-        } else {
-            x.tv_usec = 1000000 + x.tv_usec - y.tv_usec;
-            x.tv_sec = x.tv_sec - y.tv_sec - 1;
-        }
+     * value, so for portability we disallow any subtraction that would result
+     * in one. */
+    assert(x >= y);
+    if (x.tv_usec >= y.tv_usec) {
+        x.tv_usec -= y.tv_usec;
+        x.tv_sec -= y.tv_sec;
+    } else {
+        x.tv_usec = 1000000 + x.tv_usec - y.tv_usec;
+        x.tv_sec = x.tv_sec - y.tv_sec - 1;
     }
     return x;
 }

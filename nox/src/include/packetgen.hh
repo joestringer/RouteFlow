@@ -35,7 +35,6 @@ public:
 
 private:
     bool hs_done;   /* Handshake complete with controller */
-    bool hello_rdy;   /* Ready to send hello to the controller */
     Array_buffer data;
     std::auto_ptr<Buffer> next;
 

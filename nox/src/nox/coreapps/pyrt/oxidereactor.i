@@ -37,7 +37,6 @@ class oxidereactor
         PyObject* removeWriter(int);
         
         PyObject* callLater(long, long, PyObject*);
-        PyObject* resolve(PyObject*, PyObject*);
 };
 
 class vigillog

@@ -51,7 +51,7 @@ class UserEventLogTestCase
 public:
 
     UserEventLogTestCase(const container::Context* c,
-                const json_object* xml) 
+                const xercesc::DOMNode* xml)
         : Test_component(c), trigger_count(0), debug(false)   {
     }
 

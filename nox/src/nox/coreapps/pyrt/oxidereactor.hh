@@ -78,13 +78,7 @@ public:
     // Timer management
     PyObject* callLater(long, long, PyObject*);
 
-    // Resolve
-    PyObject* resolve(PyObject*, PyObject*);
-
 private:
-    void blocking_resolve(const char* name,
-			  const boost::intrusive_ptr<PyObject>&);
-
     container::Component* c;
 };
 

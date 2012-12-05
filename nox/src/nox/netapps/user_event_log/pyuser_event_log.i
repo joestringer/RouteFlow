@@ -39,8 +39,8 @@ struct LogEntry {
     enum Direction { SRC = 0, DST } ; 
 
     LogEntry(const string &_app, Level _level, const string &_msg);  
-    void setName(int64_t uid, int64_t type,Direction dir); 
-    //void setNameByLocation(const datapathid &dpid, uint16_t port, Direction dir); 
+    void setName(const string &name, Name::Type name_type,Direction dir);
+    void setNameByLocation(const datapathid &dpid, uint16_t port, Direction dir);
     void addLocationKey(const datapathid &dpid, uint16_t port,Direction dir);  
     void addMacKey(const ethernetaddr &dladdr, Direction dir); 
     void addIPKey(uint32_t nwaddr, Direction dir);  
@@ -51,9 +51,6 @@ struct LogEntry {
 %{
   from nox.lib.core import Component
   from nox.netapps.bindings_storage.pybindings_storage import Name
-  from nox.netapps.data.datatypes_impl import Datatypes
-  from nox.coreapps.pyrt.pycomponent import CONTINUE
-
 
   # TODO: remove these, and use swigged values instead
   # from LogEntry class
@@ -63,44 +60,36 @@ struct LogEntry {
     ALERT = 2 
     INFO = 3 
 
+  # this dictionary defines all valid format strings, mapping
+  # them to a tuple indicating the associated name_type and direction
+  format_map = {
+            "su" : (Name.USER,LogEntry.SRC),
+            "du" : (Name.USER,LogEntry.DST),
+            "sh" : (Name.HOST,LogEntry.SRC),
+            "dh" : (Name.HOST,LogEntry.DST),
+            "sl" : (Name.LOCATION,LogEntry.SRC),
+            "dl" : (Name.LOCATION,LogEntry.DST),
+            "ss" : (Name.SWITCH,LogEntry.SRC),
+            "ds" : (Name.SWITCH,LogEntry.DST),
+            "sug" : (Name.USER_GROUP,LogEntry.SRC),
+            "dug" : (Name.USER_GROUP,LogEntry.DST),
+            "shg" : (Name.HOST_GROUP,LogEntry.SRC),
+            "dhg" : (Name.HOST_GROUP,LogEntry.DST),
+            "slg" : (Name.LOCATION_GROUP,LogEntry.SRC),
+            "dlg" : (Name.LOCATION_GROUP,LogEntry.DST),
+            "ssg" : (Name.SWITCH_GROUP,LogEntry.SRC),
+            "dsg" : (Name.SWITCH_GROUP,LogEntry.DST)
+  }
+
   class pyuser_event_log(Component):
       """
       Python interface for the User_Event_Log 
       """  
       def __init__(self, ctxt):
-          Component.__init__(self,ctxt)
           self.proxy = user_event_log_proxy(ctxt)
-          self.principal_format_map = None
 
       def configure(self, configuration):
           self.proxy.configure(configuration)
-
-      def install(self): 
-          self.datatypes = self.resolve(Datatypes) 
-          self.register_for_bootstrap_complete(self.bootstrap_complete_cb)
-
-      def get_fmt_str(self,type,dir):
-        for k,v in self.principal_format_map.items(): 
-          if v[0] == type and v[1] == dir: 
-            return k
-        raise Exception("Invalid type and direction for format string")
-
-      def bootstrap_complete_cb(self,ign): 
-          self.principal_format_map = {  
-            "su" : (self.datatypes.USER,LogEntry.SRC),  
-            "du" : (self.datatypes.USER,LogEntry.DST),  
-            "sh" : (self.datatypes.HOST,LogEntry.SRC),  
-            "dh" : (self.datatypes.HOST,LogEntry.DST),  
-            "sn" : (self.datatypes.HOST_NETID,LogEntry.SRC),  
-            "dn" : (self.datatypes.HOST_NETID,LogEntry.DST),  
-            "sl" : (self.datatypes.LOCATION,LogEntry.SRC), 
-            "dl" : (self.datatypes.LOCATION,LogEntry.DST),  
-            "ss" : (self.datatypes.SWITCH,LogEntry.SRC),  
-            "ds" : (self.datatypes.SWITCH,LogEntry.DST),  
-            "sg" : (self.datatypes.GROUP,LogEntry.SRC),   
-            "dg" : (self.datatypes.GROUP,LogEntry.DST),  
-          }
-          return CONTINUE
 
       def getInterface(self):
           return str(pyuser_event_log)
@@ -154,20 +143,20 @@ struct LogEntry {
           # test if it is a format string and, and if so
           # add the corresponding names to the log entry
           for fmt,values in dict.iteritems(): 
-            if fmt in self.principal_format_map :
-              principal_type,dir = self.principal_format_map[fmt]
-              if type(values) == type(0) or type(values) == type(0L): 
+            if fmt in format_map :
+              name_type,dir = format_map[fmt]
+              if type(values) == type(""):
                 values = (values,) 
-              for uid in values: 
-                e.setName(uid,principal_type,dir)
+              for p in values:
+                e.setName(p,name_type,dir)
     
-          #if "set_src_loc" in dict:
-          #  t = dict["set_src_loc"] # expects (dpid,port) tuple
-          #  e.setNameByLocation(t[0],t[1],LogEntry.SRC)
+          if "set_src_loc" in dict:
+            t = dict["set_src_loc"] # expects (dpid,port) tuple
+            e.setNameByLocation(t[0],t[1],LogEntry.SRC)
           
-          #if "set_dst_loc" in dict:
-          #  t = dict["set_dst_loc"] # expects (dpid,port) tuple
-          #  e.setNameByLocation(t[0],t[1],LogEntry.DST) 
+          if "set_dst_loc" in dict:
+            t = dict["set_dst_loc"] # expects (dpid,port) tuple
+            e.setNameByLocation(t[0],t[1],LogEntry.DST)
 
           self.proxy.log(e)
 

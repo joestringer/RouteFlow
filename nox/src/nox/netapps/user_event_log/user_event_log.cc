@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -28,6 +28,7 @@
 #include "storage/storage-blocking.hh"
 #include "vlog.hh"
 
+#include <xercesc/dom/DOM.hpp>
 #include "user_event_log.hh"
 
 using namespace std;
@@ -64,7 +65,6 @@ const string User_Event_Log::NAME_TABLE_NAME = "user_event_log_names";
 void User_Event_Log::configure(const container::Configuration* conf) {
   resolve(np_store);
   resolve(b_store);
-  resolve(datatypes);
   Component_argument_list clist = conf->get_arguments(); 
   Component_argument_list::const_iterator cit = clist.begin();
   while(cit != clist.end()){
@@ -101,7 +101,7 @@ void User_Event_Log::create_table() {
   storage::Index_list main_table_indices; 
   storage::Index id_only;
   id_only.columns.push_back("logid");
-  id_only.name = "maintable_logid_only"; 
+  id_only.name = "main_logid_only";
   main_table_indices.push_back(id_only); 
 
   storage::Sync_storage sync_store(np_store);
@@ -110,25 +110,24 @@ void User_Event_Log::create_table() {
   if(result.code == storage::Result::SUCCESS){ 
       is_ready = true;
   } else {
-      lg.err("create table '%s' failed: %s \n", 
-          MAIN_TABLE_NAME.c_str(), result.message.c_str()); 
+      lg.err("create table failed: %s \n", result.message.c_str());
   }
 
   storage::Column_definition_map name_table_def; 
   name_table_def["logid"] = (int64_t)0; 
-  name_table_def["uid"] = (int64_t)0; 
-  name_table_def["principal_type"] = (int64_t)0;
+  name_table_def["name"] = "";
+  name_table_def["name_type"] = (int64_t)0;
   name_table_def["direction"] = (int64_t)0;
   
   storage::Index_list name_table_indices; 
   storage::Index n_id_only;
   n_id_only.columns.push_back("logid");
-  n_id_only.name = "nametable_logid_only"; 
+  n_id_only.name = "name_logid_only";
   name_table_indices.push_back(n_id_only); 
   storage::Index name_and_type; 
-  name_and_type.columns.push_back("uid");
-  name_and_type.columns.push_back("principal_type");
-  name_and_type.name = "nametable_name_and_type";
+  name_and_type.columns.push_back("name");
+  name_and_type.columns.push_back("name_type");
+  name_and_type.name = "name_and_type";
   name_table_indices.push_back(name_and_type); 
 
   result = sync_store.create_table(NAME_TABLE_NAME, name_table_def, 
@@ -136,8 +135,7 @@ void User_Event_Log::create_table() {
   if(result.code == storage::Result::SUCCESS){ 
       is_ready = true;
   } else {
-      lg.err("create table '%s' failed: %s \n", 
-          NAME_TABLE_NAME.c_str(), result.message.c_str()); 
+      lg.err("create table failed: %s \n", result.message.c_str());
   }
   
 } 
@@ -147,7 +145,7 @@ bool User_Event_Log::init_main_row(storage::Row &log_entry,
           const string &app_name, LogEntry::Level level, const string &msg){ 
 
   if(!is_ready){
-      lg.err("failed create log entry, database not initialized \n"); 
+      lg.err("Cannot log, create_table failed \n");
       return false; 
   }
   const struct timeval tv = do_gettimeofday(); 
@@ -238,44 +236,31 @@ void User_Event_Log::run_log_fsm(AddEntryInfo_ptr info) {
   } 
 
   lg.err("invalid state in run_log_fsm \n"); 
-}
-
-// This function is needed because binding storage uses a different
-// (outdated) set of enums to indicate principal types.  Until we update
-// binding storage (and all of the code that accesses it) the user
-// event log translates the bindings storage types to real principal types
-// here
-PrincipalType User_Event_Log::nametype_to_principaltype(Name::Type t) {
-    switch (t) { 
-      case Name::LOCATION: return datatypes->location_type(); 
-      case Name::HOST: return datatypes->host_type(); 
-      case Name::USER: return datatypes->user_type(); 
-      case Name::SWITCH: return datatypes->switch_type(); 
-      case Name::LOCATION_GROUP: return datatypes->group_type(); 
-      case Name::HOST_GROUP: return datatypes->group_type(); 
-      case Name::USER_GROUP: return datatypes->group_type(); 
-      case Name::SWITCH_GROUP: return datatypes->group_type();
-      default: return datatypes->invalid_type(); 
-  } 
 } 
 
 // write a single entry to the names table
 void User_Event_Log::write_name_row(AddEntryInfo_ptr info, 
-                                    const Principal &p, int dir){
-  int64_t logid = -1; 
+                                    const Name &n, int dir){
   try { 
     storage::Row r;
-    logid = Storage_Util::get_col_as_type<int64_t>(info->log_row,"logid");
-    r["logid"] = logid; 
+    r["logid"] = Storage_Util::get_col_as_type<int64_t>(info->log_row,"logid");
     r["direction"] = (int64_t) dir; 
-    r["uid"] = p.id;
-    r["principal_type"] = (int64_t) p.type;
+    r["name"] = n.name;
+    r["name_type"] = (int64_t) n.name_type;
+//    printf("wrote row for name = %s logid = %lld \n", n.name.c_str(),
+//        Storage_Util::get_col_as_type<int64_t>(info->log_row,"logid"));
+
+    if(n.name.length() == 0) {
+      lg.err("'%s' gave user_event_log an empty name of type %d in msg: %s \n",
+          Storage_Util::get_col_as_type<string>(info->log_row,"app").c_str(),
+          (int)n.name_type,
+          Storage_Util::get_col_as_type<string>(info->log_row,"msg").c_str());
+    }
 
     np_store->put(NAME_TABLE_NAME, r, 
         boost::bind(&User_Event_Log::write_callback,this,_1,info));  
   } catch (exception &e) { 
-    lg.err("Error writing row for uid %"PRId64", logid = %"PRId64" : %s \n", 
-          p.id , logid, e.what()); 
+    lg.err("Error writing name %s : %s \n", n.name.c_str(),e.what());
   } 
 } 
 
@@ -286,13 +271,13 @@ void User_Event_Log::write_name_row(AddEntryInfo_ptr info,
 void User_Event_Log::write_single_name_entry(AddEntryInfo_ptr info){
 
   if(info->src_names.size() > 0) {
-      Principal p = info->src_names.front(); 
+      Name n = info->src_names.front();
       info->src_names.pop_front();
-      write_name_row(info,p, 0); 
+      write_name_row(info,n, 0);
   }else if (info->dst_names.size() > 0) { 
-      Principal p = info->dst_names.front();  
+      Name n = info->dst_names.front();
       info->dst_names.pop_front(); 
-      write_name_row(info,p,1); 
+      write_name_row(info,n,1);
   } //else, all done
 } 
 
@@ -317,33 +302,26 @@ void User_Event_Log::write_callback(const storage::Result & result,
 // and direction to the log entry.  Thus, this method adds all names in
 // 'from_lookup' to 'existing' except those that have the same type as
 // a name already in 'existing'.  
-void User_Event_Log::merge_names(PrincipalList &existing, 
-                                const PrincipalList &from_lookup) {
+void User_Event_Log::merge_names(NameList &existing,
+                            const NameList &from_lookup) {
   bool needs_user = true, needs_host = true, needs_location = true;
-  bool needs_switch = true, needs_group = true; 
 
-  PrincipalList::const_iterator it = existing.begin(); 
+  NameList::const_iterator it = existing.begin();
   for(; it != existing.end(); it++) { 
-    PrincipalType type = it->type;
-    if(type == datatypes->user_type()) needs_user = false;
-    else if(type == datatypes->host_type()) needs_host = false;
-    else if(type == datatypes->location_type()) needs_location = false;
-    else if(type == datatypes->switch_type()) needs_switch = false;
-    else if(type == datatypes->group_type()) needs_group = false;
+    Name::Type type = it->name_type;
+    if(type == Name::USER) needs_user = false;
+    else if(type == Name::HOST) needs_host = false;
+    else if(type == Name::LOCATION) needs_location = false;
   } 
  
   it = from_lookup.begin(); 
   for(; it != from_lookup.end(); it++) { 
-    PrincipalType type = it->type;
-    if(type == datatypes->user_type() && needs_user)
+    Name::Type type = it->name_type;
+    if(type == Name::USER && needs_user)
       existing.push_back(*it);
-    else if(type == datatypes->host_type() && needs_host) 
+    else if(type == Name::HOST && needs_host)
       existing.push_back(*it);
-    else if(type == datatypes->location_type() && needs_location) 
-      existing.push_back(*it);
-    else if(type == datatypes->switch_type() && needs_switch) 
-      existing.push_back(*it);
-    else if(type == datatypes->group_type() && needs_group) 
+    else if(type == Name::LOCATION && needs_location)
       existing.push_back(*it);
   } 
 
@@ -352,32 +330,18 @@ void User_Event_Log::merge_names(PrincipalList &existing,
 
 // callback to Bindings_Store query for source LOCATION names
 void User_Event_Log::get_names_cb(const NameList &names,AddEntryInfo_ptr info) {
- 
-  PrincipalList converted_list; 
-  NameList::const_iterator it = names.begin();
-  for(; it != names.end(); it++) { 
-    Principal p; 
-    p.id = it->id; 
-    p.type = nametype_to_principaltype(it->name_type);
-    if(p.type != datatypes->invalid_type()){ 
-      converted_list.push_back(p); 
-    } else { 
-      lg.err("Invalid convertion to PrincipalType for Name::Type = %d\n", 
-              it->name_type); 
-    }
-  } 
 
   if(info->cur_state == READ_SRC_LOCNAMES){
-    merge_names(info->src_names,converted_list);
+    merge_names(info->src_names,names);
     info->cur_state = READ_DST_LOCNAMES;
   } else if(info->cur_state == READ_DST_LOCNAMES){
-    merge_names(info->dst_names,converted_list);
+    merge_names(info->dst_names,names);
     info->cur_state = READ_SRC_NAMES; 
   } else if(info->cur_state == READ_SRC_NAMES){
-    merge_names(info->src_names, converted_list);
+    merge_names(info->src_names, names);
     info->cur_state = READ_DST_NAMES; 
   } else if(info->cur_state == READ_DST_NAMES){
-    merge_names(info->dst_names, converted_list);  
+    merge_names(info->dst_names, names);
     info->cur_state = WRITE_MAIN_ENTRY;  
   } else { 
     lg.err("Invalid state %d in get_names_cb \n", info->cur_state); 
@@ -443,14 +407,14 @@ void User_Event_Log::read_names_cb(const storage::Result & result, const storage
       finish_get_entry(info);
     } else { // SUCCESS, read next row 
       try { 
-        Principal p; 
-        p.id = Storage_Util::get_col_as_type<int64_t>(row,"uid");
-        p.type = (PrincipalType)
-          Storage_Util::get_col_as_type<int64_t>(row,"principal_type"); 
+        string name = Storage_Util::get_col_as_type<string>(row,"name");
+        Name::Type type = (Name::Type)
+          Storage_Util::get_col_as_type<int64_t>(row,"name_type");
+        Name n(name,type);
         if(Storage_Util::get_col_as_type<int64_t>(row,"direction") == 0) 
-          info->src_names.push_back(p); 
+          info->src_names.push_back(n);
         else
-          info->dst_names.push_back(p); 
+          info->dst_names.push_back(n);
 
       } catch (exception &e) {
         lg.err("Exception read name row for logid = %"PRId64": %s \n", 
@@ -471,11 +435,11 @@ void User_Event_Log::finish_get_entry(GetEntryInfo_ptr info) {
 
 // spawns a lookup in the name-table for all rows associated with the
 // provided (name,type).  
-void User_Event_Log::get_logids_for_name(int64_t id, PrincipalType t,
+void User_Event_Log::get_logids_for_name(const string &name, Name::Type t,
                                           Get_logids_callback &cb) {
   storage::Query q;
-  q["uid"] = id;
-  q["principal_type"] = (int64_t) t;
+  q["name"] = name;
+  q["name_type"] = (int64_t) t;
   GetLogidsInfo_ptr info = GetLogidsInfo_ptr(new GetLogidsInfo(cb));
   np_store->get(NAME_TABLE_NAME,q,boost::bind(&User_Event_Log::get_logids_cb,
         this, _1,_2,_3,info));  

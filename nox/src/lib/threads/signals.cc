@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
-#include <stdio.h>
 #include "sigset.hh"
 #include "threads/impl.hh"
 

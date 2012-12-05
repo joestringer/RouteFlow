@@ -39,15 +39,16 @@ between components.
 Components
 ------------
 
-All NOX component code resides in *src/nox/coreapps*,
-*src/nox/netapps/*, or *src/nox/webapps/*.  In general, each NOX
-component has its own directory however this isn't strictly necessary
-(for example *src/nox/coreapps/examples/* contains multiple apps).  
+All NOX component code resides in *src/nox/apps/*.  In general, each NOX
+component has its own directory within *src/nox/apps/* however this isn't
+strictly necessary (for example *src/nox/apps/examples/* contains multiple
+apps).
+
 
 Building a C++ only component
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Lets use the hub program (in src/nox/coreapps/hub/ ) as an example of how to
+Lets use the hub program (in src/nox/apps/hub/ ) as an example of how to
 extend NOX.  Hub is just that, a dumb network hub which floods packets
 out of all ports except the incoming port.  For every packet received by
 NOX, the hub floods the packet and then adds a flow entry in the
@@ -116,7 +117,7 @@ Building a Python only component
 ..  highlight:: python 
 
 Pure python components are much simpler to construct then C++ components.  As
-an example, see src/nox/coreapps/examples/pyloop.py.  A Python component must have the
+an example, see src/nox/apps/examples/pyloop.py.  A Python component must have the
 following construction::
 
     from nox.lib.core import *
@@ -146,7 +147,7 @@ You may optionally add a configure method which is called in the same order as
 for C++ (before install on startup).  The following steps should be all that is
 needed to build a bare-bones python component for NOX.
 
-* Add your .py file to src/nox/coreapps/examples/
+* Add your .py file to src/nox/apps/examples/
 * Copy code from src/nox/apps/examples/pyloop (you need to mirror everything except for the code under the install method)
 * Add your Python file(s) to NOX_RUNTIMEFILES in src/nox/apps/examples/Makefile.am
 * Update src/nox/apps/examples/meta.xml to include your new app. Make sure that "python runtime" is a dependency (copying is the best approach). 

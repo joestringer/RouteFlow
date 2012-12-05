@@ -1,90 +1,113 @@
-/* Copyright 2010 (C) Stanford University.
- *
- * This file is part of NOX.
- *
- * NOX is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * NOX is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with NOX.  If not, see <http://www.gnu.org/licenses/>.
- */
-#ifndef lavi_HH
-#define lavi_HH
+#ifndef LAVI_HH__
+#define LAVI_HH__
 
+#include <sys/time.h>
 #include "component.hh"
-#include "config.h"
+#include "hash_map.hh"
+#include "tcp-socket.hh"
+#include "bookman.hh"
+#include "marie.hh"
+#include "komui.hh"
+#include "lenalee.hh"
+#include "timcanpy.hh"
+#include "netinet++/datapathid.hh"
+#include "topology/topology.hh"
 
-#ifdef LOG4CXX_ENABLED
-#include <boost/format.hpp>
-#include "log4cxx/logger.h"
-#else
-#include "vlog.hh"
-#endif
 
-namespace vigil
-{
-  using namespace std;
-  using namespace vigil::container;
+/** Indicate if unknown messages is indicated via WARN.
+ */
+#define LAVI_WARN_UNKNOWN_MSG false
 
-  /** \brief lavi: Components that allows network state to be enquired
-   * \ingroup noxcomponents
-   * 
-   * This module is now a dummy module that starts all the relevant
-   * components instead.  This is to allow changes of components needed
-   * at runtime.
+namespace vigil {
+using namespace vigil::applications;
+using namespace vigil::container;
+  /** \brief Class for network monitor information.
    *
-   * This version of LAVI is a partial rewrite from previous version, 
-   * using the new components in NOX.
-   * 
+   * This network monitor is designed with work with simultaneous
+   * NOX controllers within a network.  This prevents the hijacking
+   * of messages from the controllers to determine network status,
+   * leaving controlled query as the means of monitoring.
+   *
+   * TCP and SSL port can be changed at commandline using
+   * tcpport and sslport arguments for golems respectively.
+   * port 0 is interpreted as disabling the server socket.
+   * E.g.,
+   * ./nox_core -i ptcp:6633 lavi golems=tcport=11222,sslport=0
+   * will run TCP server on port 11222 and SSL server will be disabled.
+   *
+   * Copyright (C) Stanford University, 2008.
    * @author ykk
-   * @date May 2010
+   * @date November 2008
+   * @see bookman
+   * @see marie
+   * @see komui
+   * @see lenalee
+   * @see timcanpy
    */
   class lavi
-    : public Component 
+    : public Component
   {
   public:
-    /** \brief Constructor of lavi.
-     *
-     * @param c context
-     * @param node XML configuration (JSON object)
+    /** Constructor.
+     * @param c context as required by Component
+     * @param node Xercesc DOMNode
      */
-    lavi(const Context* c, const json_object* node)
+    lavi(const Context* c,const xercesc::DOMNode* node)
       : Component(c)
     {}
     
-    /** \brief Configure lavi.
-     * 
-     * Parse the configuration, register event handlers, and
-     * resolve any dependencies.
-     *
-     * @param c configuration
+    /** Destructor.
      */
-    void configure(const Configuration* c);
+    virtual ~lavi()
+    { ; }
 
-    /** \brief Start lavi.
-     * 
-     * Start the component. For example, if any threads require
-     * starting, do it now.
+    /** Configure component
+     * @param config configuration
+     */
+    void configure(const Configuration* config);
+
+    /** Start component.
      */
     void install();
 
-    /** \brief Get instance of lavi.
-     * @param c context
-     * @param component reference to component
+    /** Get instance (for python)
+     * @param ctxt context
+     * @param scpa reference to return instance with
+    */
+    static void getInstance(const container::Context* ctxt, vigil::lavi*& scpa);
+
+    /** Function to handle \ref vigil::Book_msg_event.
+     * @param e event to handle
+     * @return CONTINUE if unknown message type, else STOP
      */
-    static void getInstance(const container::Context* c, 
-			    lavi*& component);
+    Disposition handle_book_msg(const Event& e);
 
   private:
-
+    /** Function to warn about errorneous messages.
+     * @param msg message to warn of
+     */
+    inline void wrong_msg(book_message* msg);
+    /** Check length of message.
+     * @param bm message event
+     * @param size expected size
+     */
+    inline void check_len(const Book_msg_event& bm, ssize_t size);
+    /** Reference to bookman for messaging.
+     */
+    bookman* book;
+    /** Reference to marie for topology monitoring.
+     */
+    marie* topo;
+    /** Reference to komui for polling management.
+     */
+    komui* poll;
+    /** Reference to lenalee for flows.
+     */
+    lenalee* flowinfo;
+    /** Reference to timcanpy as OpenFlow proxy
+     */
+    timcanpy* ofproxy;
   };
-}
+} // namespace vigil
 
 #endif

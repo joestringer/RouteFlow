@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components:components xmlns:components="http://www.noxrepo.org/components.xsd">
+  <component>
+    <name>dhcp</name>
+    <library>dhcp</library>
+    <dependency><name>openflowpacket</name></dependency>
+    <dependency><name>sqlitelog</name></dependency>
+  </component>
+</components:components>

@@ -37,13 +37,9 @@ class SampleRouting(Component):
         route = pyrouting.Route()
         sloc = event.route_source
         if sloc == None:
-            sloc = event.src_location['sw']['dp']
-            route.id.src = netinet.create_datapathid_from_host(sloc)
-            inport = event.src_location['port']
-            sloc = sloc | (inport << 48)
-        else:
-            route.id.src = netinet.create_datapathid_from_host(sloc & DP_MASK)
-            inport = (sloc >> 48) & PORT_MASK
+            sloc = event.src_location['dpport']
+        route.id.src = netinet.create_datapathid_from_host(sloc & DP_MASK)
+        inport = (sloc >> 48) & PORT_MASK
         if len(event.route_destinations) > 0:
             dstlist = event.route_destinations
         else:
@@ -53,21 +49,21 @@ class SampleRouting(Component):
             if isinstance(dst, dict):
                 if not dst['allowed']:
                     continue
-                dloc = dst['authed_location']['sw']['dp']
-                route.id.dst = netinet.create_datapathid_from_host(dloc & DP_MASK)
-                outport = dst['authed_location']['port']
-                dloc = dloc | (outport << 48)
+                dloc = dst['authed_location']['dpport']
             else:
                 dloc = dst
-                route.id.dst = netinet.create_datapathid_from_host(dloc & DP_MASK)
-                outport = (dloc >> 48) & PORT_MASK
             if dloc == 0:
                 continue
+            route.id.dst = netinet.create_datapathid_from_host(dloc & DP_MASK)
             if self.routing.get_route(route):
                 checked = True
+                outport = (dloc >> 48) & PORT_MASK
                 if self.routing.check_route(route, inport, outport):
-                    log.err('Found route %s.' % hex(route.id.src.as_host())+':'+str(inport)+' to '+hex(route.id.dst.as_host())+':'+str(outport))
-                    self.routing.setup_route(event.flow, route, inport, outport, FLOW_TIMEOUT, [], True)
+                    log.msg('Found route %s.' % hex(route.id.src.as_host())+':'+str(inport)+' to '+hex(route.id.dst.as_host())+':'+str(outport))
+                    actions = [self.make_action_array([[openflow.OFPAT_SET_DL_SRC, event.flow.dl_src]])]
+                    for i in xrange(route.path.size()):
+                        actions.append("")
+                    self.routing.setup_route(event.flow, route, inport, outport, FLOW_TIMEOUT, actions, True)
                     if indatapath == route.id.src or pyrouting.dp_on_route(indatapath, route):
                         self.routing.send_packet(indatapath, inport, openflow.OFPP_TABLE,
                                                  event.buffer_id, event.buf, "", False, event.flow)
@@ -75,11 +71,11 @@ class SampleRouting(Component):
                         log.err("Packet not on route - dropping.")
                     return CONTINUE
                 else:
-                    log.err("Invalid route between %s." % hex(route.id.src.as_host())+':'+str(inport)+' to '+hex(route.id.dst.as_host())+':'+str(outport))
+                    log.msg("Invalid route between %s." % hex(route.id.src.as_host())+':'+str(inport)+' to '+hex(route.id.dst.as_host())+':'+str(outport))
             else:
-                log.err("No route between %s and %s." % (hex(route.id.src.as_host()), hex(route.id.dst.as_host())))
+                log.msg("No route between %s and %s." % (hex(route.id.src.as_host()), hex(route.id.dst.as_host())))
         if not checked:
-            log.err('Broadcasting packet')
+            log.msg('Broadcasting packet')
 
             if event.flow.dl_dst.is_broadcast():
                 self.routing.setup_flow(event.flow, indatapath, openflow.OFPP_FLOOD,
@@ -92,7 +88,7 @@ class SampleRouting(Component):
                                          event.flow.dl_type == htons(ethernet.IP_TYPE),
                                          event.flow)
         else:
-            log.err("Dropping packet")
+            log.msg("Dropping packet")
 
         return CONTINUE
 

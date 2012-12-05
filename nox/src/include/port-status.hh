@@ -25,15 +25,6 @@
 
 namespace vigil {
 
-/** \ingroup noxevents
- *
- * Port_status events are thrown for each change in switch port status.
- * Generally this means that a port has been enable or disabled, or
- * a port has been added to a switch.
- *
- */
-
-
 struct Port_status_event
     : public Event,
       public Ofp_msg_event
@@ -56,7 +47,6 @@ struct Port_status_event
         return "Port_status_event";
     }
 
-    //! Reason for port status change (from ofp_port_reason)
     uint8_t reason;
     Port port;
     datapathid datapath_id;
@@ -64,6 +54,38 @@ struct Port_status_event
     Port_status_event(const Port_status_event&);
     Port_status_event& operator=(const Port_status_event&);
 };
+
+/*
+struct CPort_status_event
+    : public Event,
+      public Ofp_msg_event
+{
+    CPort_status_event(datapathid datapath_id_, uint8_t reason_,
+                      const CPort& cport_)
+        : Event(static_get_name()), reason(reason_), cport(cport_),
+          datapath_id(datapath_id_) {}
+
+    CPort_status_event(datapathid datapath_id_, const ofp_cport_status *ocps,
+                      std::auto_ptr<Buffer> buf)
+        : Event(static_get_name()), Ofp_msg_event(&ocps->header, buf),
+          reason(ocps->reason), cport(&ocps->desc), datapath_id(datapath_id_)
+        {}
+
+    // -- only for use within python
+    CPort_status_event() : Event(static_get_name()) { ; }
+
+    static const Event_name static_get_name() {
+        return "CPort_status_event";
+    }
+
+    uint8_t reason;
+    CPort cport;
+    datapathid datapath_id;
+
+    CPort_status_event(const CPort_status_event&);
+    CPort_status_event& operator=(const CPort_status_event&);
+};
+*/
 
 } // namespace vigil
 

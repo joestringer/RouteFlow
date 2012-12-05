@@ -80,8 +80,7 @@ Event_dispatcher::dispatch(const Event& e)
                     break;
                 }
             } catch (const std::exception& e) {
-                lg.err("Event %s processing leaked an exception: %s", 
-		       name.c_str(), e.what());
+                lg.err("Event processing leaked an exception: %s", e.what());
                 break;
             }
         }

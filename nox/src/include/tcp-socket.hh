@@ -50,8 +50,6 @@ public:
     int listen(int backlog);
     std::auto_ptr<Tcp_socket> accept(int& error, bool block);
     int shutdown(int how);
-    uint32_t get_local_ip(); 
-    uint32_t get_remote_ip(); 
 
 private:
     Auto_fd fd;

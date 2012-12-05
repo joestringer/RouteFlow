@@ -37,7 +37,7 @@ class Hub
 {
 public:
      Hub(const Context* c,
-         const json_object*) 
+         const xercesc::DOMNode*)
          : Component(c) { }
     
     void configure(const Configuration*) {

@@ -68,6 +68,9 @@ get_field<Packet_expr, Flow>(uint32_t field, const Flow& flow,
     case Packet_expr::NW_PROTO:
         value = flow.nw_proto;
         return true;
+    case Packet_expr::NW_TOS:
+        value = flow.nw_tos;
+        return true;
     case Packet_expr::TP_SRC:
         value = flow.tp_src;
         return true;
@@ -127,6 +130,9 @@ Packet_expr::get_field(uint32_t field, uint32_t& value) const
     case NW_PROTO:
         value = nw_proto;
         return true;
+    case NW_TOS:
+        value = nw_tos;
+        return true;
     case TP_SRC:
         value = tp_src;
         return true;
@@ -179,6 +185,9 @@ Packet_expr::set_field(Expr_field field, const uint32_t value[MAX_FIELD_LEN])
     case NW_PROTO:
         nw_proto = value[0];
         break;
+    case NW_TOS:
+        nw_tos = value[0];
+        break;
     case TP_SRC:
         tp_src = value[0];
         break;
@@ -215,7 +224,7 @@ Packet_expr::splittable(uint32_t path) const
 
 template <>
 bool
-matches(uint32_t rule_id, const Packet_expr& expr, const Flow& flow)
+matches(const Packet_expr& expr, const Flow& flow)
 {
     assert(!((~expr.wildcards) & (Cnode<Packet_expr, void*>::MASKS[Packet_expr::AP_DST]
                              | Cnode<Packet_expr, void*>::MASKS[Packet_expr::GROUP_SRC]
@@ -247,7 +256,7 @@ matches(uint32_t rule_id, const Packet_expr& expr, const Flow& flow)
 
 template <>
 bool
-matches(uint32_t rule_id, const Packet_expr& expr, const Packet_expr& to_match)
+matches(const Packet_expr& expr, const Packet_expr& to_match)
 {
     if ((expr.wildcards | to_match.wildcards) != to_match.wildcards)
         return false;

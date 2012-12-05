@@ -23,13 +23,6 @@
 
 namespace vigil {
 
-/** \ingroup noxevents
- *
- * Datapath_leave_events are thrown when a switch disconnects from the
- * network.
- *
- */
-
 struct Datapath_leave_event
     : public Event
 {
@@ -43,7 +36,6 @@ struct Datapath_leave_event
         return "Datapath_leave_event";
     }
 
-    //! ID of the departing switch 
     datapathid datapath_id;
 
 private:

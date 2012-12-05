@@ -1,4 +1,4 @@
-/* Copyright 2008, 2009 (C) Nicira, Inc.
+/* Copyright 2008 (C) Nicira, Inc.
  *
  * This file is part of NOX.
  *
@@ -23,7 +23,7 @@
 
 #include <boost/filesystem.hpp>
 
-#include "json_object.hh"
+#include <xercesc/dom/DOM.hpp>
 
 #include "component.hh"
 #include "hash_map.hh"
@@ -45,15 +45,11 @@ public:
     virtual bool deploy(Kernel*, const container::Component_name&);
 
     static const char* COMPONENTS_CONFIGURATION_SCHEMA;
-    ////static const char* XML_DESCRIPTION;
-    static const char* JSON_DESCRIPTION;
+    static const char* XML_DESCRIPTION;
 
-    /* Find recursively any JSON component description files. */
+    /* Find recursively any XML component description files. */
     typedef std::list<boost::filesystem::path> Path_list;
     static Path_list scan(boost::filesystem::path);
-
-    /* Get all contexts the deployer knows about. */
-    Component_context_list get_contexts() const;
 
 protected:
     /* Components known about, but not installed into the kernel. */
@@ -67,32 +63,24 @@ class Component_configuration
     : public container::Configuration {
 public:
     Component_configuration();
-    Component_configuration(json_object*, 
+    Component_configuration(xercesc::DOMNode*,
                             const container::Component_argument_list&);
     const std::string get(const std::string&) const;
     const bool has(const std::string&) const;
     const std::list<std::string> keys() const;
     const container::Component_argument_list get_arguments() const;
-    /** /brief Return all command line arguments in a list. 
-     *
-     * @param d1 delimiter (for different arguments)
-     * @param d2 delimiter (for value in arguments)
-     * @return hash map of arguments
-     */
-    const hash_map<std::string,std::string> get_arguments_list(char d1=',', 
-							       char d2='=') const;
 
     /* Human-readable component name */
     container::Component_name name;
     
-    /* Component's JSON description */
-    json_object* json_description;
+    /* Component's XML description */
+    xercesc::DOMNode* xml_description;
 
     /* Command line arguments */
     container::Component_argument_list arguments;
 
 private:
-    /* JSON configuration translated into key-value pairs */
+    /* XML configuration translated into key-value pairs */
     mutable hash_map<std::string, std::string> kv;
 };
 

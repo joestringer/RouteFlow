@@ -18,6 +18,8 @@
 #ifndef  RULE_HH
 #define  RULE_HH
 
+#include <stdint.h>
+#include <cstdio>
 #include <boost/function.hpp>
 #include <boost/shared_ptr.hpp>
 

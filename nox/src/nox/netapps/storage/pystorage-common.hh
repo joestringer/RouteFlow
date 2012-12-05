@@ -52,7 +52,7 @@ namespace vigil {
 namespace applications {
 namespace storage {
 
-typedef boost::intrusive_ptr<PyObject> PyObject_ptr;
+typedef boost::intrusive_ptr<PyObject> SwigPtr_PyObject;
 
 template<typename T>
 T from_python(PyObject*);
@@ -277,7 +277,7 @@ Column_value_map from_python(PyObject* cv) {
             if (PyString_Check(v)) {
                 m[name] = from_python<std::string>(v);
             } else if (PyUnicode_Check(v)) { 
-                PyObject_ptr str(PyUnicode_AsUTF8String(v), false);
+                SwigPtr_PyObject str(PyUnicode_AsUTF8String(v), false);
                 if (!str.get()) {
                     throw std::runtime_error("Encoding an unicode string to "
                                              "UTF-8 failed:\n" + 

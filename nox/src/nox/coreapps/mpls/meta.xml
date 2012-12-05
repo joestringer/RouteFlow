@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components:components xmlns:components="http://www.noxrepo.org/components.xsd">
+
+  <component>
+    <name>mpls_gui</name>
+    <library>mpls_gui</library>
+    <dependency><name>bookman</name></dependency>
+	<dependency><name>lavi</name></dependency>
+    <dependency><name>msgpacket</name></dependency>
+
+  </component>
+
+  <component>
+    <name>cspf</name>
+    <library>cspf</library>
+    <dependency>
+      <name>topology</name>
+    </dependency>
+    <dependency>
+      <name>nat_enforcer</name>
+    </dependency>
+  </component>
+
+  <component>
+    <name>mpls</name>
+    <library>mpls</library>
+    <dependency><name>mpls_gui</name></dependency>
+    <dependency><name>cspf</name></dependency>
+
+  </component>
+
+
+
+</components:components>

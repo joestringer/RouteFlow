@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<components:components xmlns:components="http://www.noxrepo.org/components.xsd">
+  <!-- C++ component -->
+  <component>
+    <name>lavi</name>
+    <library>lavi</library>
+    <dependency><name>bookman</name></dependency>
+    <dependency><name>marie</name></dependency>
+    <dependency><name>komui</name></dependency>
+    <dependency><name>lenalee</name></dependency>
+    <dependency><name>timcanpy</name></dependency>
+  </component>
+
+  <component>
+    <name>komui</name>
+    <library>komui</library>
+    <dependency><name>bookman</name></dependency>
+  </component>
+
+  <component>
+    <name>lenalee</name>
+    <library>lenalee</library>
+    <dependency><name>bookman</name></dependency>
+   <dependency><name>flowroutecache</name></dependency>
+  </component>
+
+  <component>
+    <name>marie</name>
+    <library>marie</library>
+    <dependency><name>bookman</name></dependency>
+    <dependency><name>topology</name></dependency>
+  </component>
+
+  <component>
+    <name>timcanpy</name>
+    <library>timcanpy</library>
+    <dependency><name>bookman</name></dependency>
+    <dependency><name>openflowpacket</name></dependency>
+  </component>
+
+  <component>
+    <name>bookman</name>
+    <library>bookman</library>
+    <dependency><name>golems</name></dependency>
+  </component>
+
+  <component>
+    <name>golems</name>
+    <library>golems</library>
+    <dependency><name>messenger_core</name></dependency>
+    <dependency><name>msgpacket</name></dependency>
+  </component>
+
+
+  <!-- Python component -->
+  <component>
+    <name>python lavi</name>
+    <dependency>
+      <name>pylavi</name>
+    </dependency>
+    <python>nox.apps.lavi.pylavi</python>
+  </component>
+</components:components>

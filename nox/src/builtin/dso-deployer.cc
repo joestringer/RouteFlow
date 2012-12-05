@@ -26,10 +26,11 @@
 
 #include "fault.hh"
 #include "vlog.hh"
-#include "json-util.hh"
+#include "xml-util.hh"
 
 using namespace vigil;
 using namespace std;
+using namespace xercesc;
 
 static Vlog_module lg("dso-deployer");
 
@@ -82,51 +83,35 @@ DSO_deployer::DSO_deployer(Kernel* kernel, const list<string>& lib_dirs_)
         description_files.insert(description_files.end(), 
                                 results.begin(), results.end());
     }
-    
+
     BOOST_FOREACH(path p, description_files) {
         const string f = p.string();
         path directory = p;
         directory.remove_leaf();
-    
-        const json_object* d = json::load_document(f);
-        if (d->type == json_object::JSONT_NULL) {
-            lg.err("Can't load and parse '%s'", f.c_str());
+
+        string error_msg;
+        const DOMDocument* d =
+            xml::load_document(COMPONENTS_CONFIGURATION_SCHEMA, f, error_msg);
+        if (!d) {
+            lg.err("Can't load and parse '%s': %s",
+                   f.c_str(), error_msg.c_str());
             continue;
         }
-        
-        json_object* components = json::get_dict_value(d, "components"); 
-        json_array* componentList = (json_array*) components->object;
-        
-        json_array::iterator li;
-        for(li=componentList->begin(); li!=componentList->end(); ++li) {
-            try {
-                Component_context* ctxt = 
-                    new DSO_component_context(kernel, directory.string(), *li);
-                if (uninstalled_contexts.find(ctxt->get_name()) ==
-                    uninstalled_contexts.end()) {
-                    uninstalled_contexts[ctxt->get_name()] = ctxt;
-                } else {
-                    lg.err("Component '%s' declared multiple times.",
-                           ctxt->get_name().c_str());
-                    delete ctxt;
-                }
-            } catch (const bad_cast& e) {
-                // Not a DSO component, skip.
-                continue;
-            }
-        }
-    }
+        const DOMNode* c = xml::get_child_by_tag(d, "components");
+        const DOMNodeList* l = c->getChildNodes();
 
-    /* Cross-check they are no duplicate component definitions across
-       deployers. */
-    BOOST_FOREACH(const Deployer* deployer, kernel->get_deployers()) {
-        BOOST_FOREACH(Component_context* ctxt, deployer->get_contexts()) {
-            Component_name_context_map::iterator i = 
-                uninstalled_contexts.find(ctxt->get_name());
-            if (i != uninstalled_contexts.end()) {
-                lg.err("Component '%s' declared multiple times.",
-                       ctxt->get_name().c_str());
-                uninstalled_contexts.erase(i);
+        for (XMLSize_t j = 0; j < l->getLength(); ++j) {
+            DOMNode* cc_xml = l->item(j);
+            if (cc_xml->getNodeType() == DOMNode::ELEMENT_NODE) {
+                try {
+                    Component_context* ctxt =
+                        new DSO_component_context(kernel, directory.string(),
+                                                  cc_xml);
+                    uninstalled_contexts[ctxt->get_name()] = ctxt;
+                } catch (const bad_cast& e) {
+                    /* Not a DSO component, skip. */
+                    continue;
+                }
             }
         }
     }
@@ -142,7 +127,7 @@ DSO_deployer::~DSO_deployer() {
 
 container::Component*
 DSO_deployer::instantiate(Kernel* kernel, const Path_list& lib_search_paths,
-                          const container::Context*, const json_object*) {
+                          const container::Context*, const xercesc::DOMNode*) {
     return new DSO_deployer(kernel, lib_search_paths);
 }
 
@@ -163,10 +148,10 @@ DSO_deployer::get_search_paths() const {
 
 DSO_component_context::DSO_component_context(Kernel* kernel,
                                              const string& home_path,
-                                             json_object* description)
+                                             DOMNode* description)
     : Component_context(kernel) {
     using namespace boost;
-    using namespace json;
+    using namespace xml;
 
     install_actions[DESCRIBED] = bind(&DSO_component_context::describe, this);
     install_actions[LOADED] = bind(&DSO_component_context::load, this);
@@ -179,36 +164,31 @@ DSO_component_context::DSO_component_context(Kernel* kernel,
         bind(&DSO_component_context::install, this);
     
     /* Determine the configuration */
-    json_object* attr;
-    
-    attr = json::get_dict_value(description, "name");
-    name = attr->get_string(true);
-    
-    attr = json::get_dict_value(description, "library");
-    if (attr==NULL) {
+    name = to_string(get_child_by_tag(description, "name")->getTextContent());
+
+    const DOMNode* n = get_child_by_tag(description, "library");
+    if (!n) {
         throw bad_cast();
     }
-    library = attr->get_string(true);
-        
+
+    this->home_path = home_path;
+    library = to_string(n->getTextContent());
+
     if (library.length() > 3 && library.find(".so") == library.length() - 3) {
         lg.warn("Dropped an unneccessary '.so' suffix in a shared library "
                 "file definition: %s", library.c_str());
         library = library.substr(0, library.size() - 3);
     }
-    
-    this->home_path = home_path;
-    
-    attr = json::get_dict_value(description, "dependencies");
-    if (attr!=NULL) {
-        json_array* depList = (json_array*) attr->object;
-        for(json_array::iterator li=depList->begin(); li!=depList->end(); ++li){
-            dependencies.push_back(new Name_dependency(((json_object*)*li)->get_string(true)));
-        }
+
+    BOOST_FOREACH(DOMNode* n, get_children_by_tag(description, "dependency")) {
+        const container::Component_name dep_name =
+            to_string(xml::get_child_by_tag(n, "name")->getTextContent());
+        dependencies.push_back(new Name_dependency(dep_name));
     }
-    
+
     configuration = new Component_configuration(description, 
                                                 kernel->get_arguments(name));
-    json_description = description;
+    xml_description = description;
 }
 
 void 
@@ -288,7 +268,7 @@ DSO_component_context::instantiate_factory() {
 void 
 DSO_component_context::instantiate() {
     try {
-        component = factory->instance(this, json_description);
+        component = factory->instance(this, xml_description);
         current_state = INSTANTIATED;
     }
     catch (const std::exception& e) {

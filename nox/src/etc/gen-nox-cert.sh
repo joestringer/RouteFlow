@@ -10,7 +10,7 @@ if [ ! -e $1/noxca.cnf ]; then
      exit 127
 fi
 
-openssl genrsa -passout pass:INSECURE -des3 -out noxca.key 2048 >& 2 
+openssl genrsa -passout pass:INSECURE -des3 -out noxca.key 1024 >& 2
 chmod 0700 noxca.key
 openssl rsa    -passin  pass:INSECURE -in noxca.key -out noxca.key.insecure >& 2 
 chmod 0700 noxca.key.insecure

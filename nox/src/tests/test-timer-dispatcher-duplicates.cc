@@ -30,7 +30,6 @@
 #include <boost/bind.hpp>
 #include <unistd.h>
 #include "threads/cooperative.hh"
-#include <cstdio>
 
 #undef NDEBUG
 #include <assert.h>

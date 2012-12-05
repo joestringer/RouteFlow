@@ -138,7 +138,7 @@ class rfproxy : public Component, private IPCMessageProcessor
 
     public:
         // Initialization
-        rfproxy(const Context* c, const json_object* node) : Component(c) {}
+        rfproxy(const Context* c, const xercesc_2_8::DOMNode* node) : Component(c) {}
         void configure(const Configuration* c);
         void install();
         static void getInstance(const container::Context* c, rfproxy*& component);

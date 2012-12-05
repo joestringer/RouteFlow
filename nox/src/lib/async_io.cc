@@ -17,7 +17,6 @@
  */
 #include "async_io.hh"
 #include <cerrno>
-#include <stdio.h>
 #include "buffer.hh"
 #include "threads/cooperative.hh"
 

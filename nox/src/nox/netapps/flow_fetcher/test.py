@@ -38,13 +38,15 @@ import simplejson
 
 from nox.lib.core import *
 
-from nox.webapps.webservice  import webservice
+from nox.uiapps.coreui  import webservice
 
 from nox.lib.config   import version
 from nox.lib.directory import Directory, DirectoryException
 from nox.lib.netinet.netinet import datapathid
 
-from nox.webapps.webservice.webservice import json_parse_message_body
+from nox.uiapps.coreui.webservice import json_parse_message_body
+
+from nox.netapps.directory.directorymanager import directorymanager
 
 from nox.netapps.flow_fetcher.pyflow_fetcher import flow_fetcher_app
 

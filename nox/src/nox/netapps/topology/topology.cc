@@ -37,7 +37,7 @@ namespace applications {
 static Vlog_module lg("topology");
 
 Topology::Topology(const Context* c,
-                   const json_object*)
+                   const xercesc::DOMNode*)
     : Component(c)
 {
     empty_dp.active = false;
@@ -87,6 +87,15 @@ Topology::get_dpinfo(const datapathid& dp) const
     }
 
     return nlm_iter->second;
+}
+
+void Topology::get_switches()
+{
+  NetworkLinkMap::const_iterator nlm_iter;
+  swSet.clear();
+
+  for (nlm_iter = topology.begin(); nlm_iter != topology.end(); nlm_iter++)
+    swSet.push_back(nlm_iter->first);
 }
 
 const Topology::DatapathLinkMap&

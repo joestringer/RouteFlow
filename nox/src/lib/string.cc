@@ -18,7 +18,6 @@
 #include "string.hh"
 
 #include <stdlib.h>
-#include <stdio.h>
 
 #define NOT_REACHED() abort()
 

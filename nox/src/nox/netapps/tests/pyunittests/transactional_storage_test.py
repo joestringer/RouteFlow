@@ -27,7 +27,7 @@ class TransactionalStorageTestCase(unittest.NoxTestCase):
 
     def setUp(self):
         try:
-            from nox.ext.apps.tstorage import TransactionalStorage
+            from nox.netapps.storage import TransactionalStorage
             self.impl = self.ctxt.resolve(str(TransactionalStorage))
         except Exception, e:
             print e
@@ -337,7 +337,7 @@ class TransactionalStorageTestCase(unittest.NoxTestCase):
             d.addCallback(put_ok)
             return d
 
-        from nox.ext.apps.tstorage import TransactionalConnection
+        from nox.netapps.storage import TransactionalConnection
         d = self.conn.begin(TransactionalConnection.EXCLUSIVE)
         d.addCallback(begin_ok)
         return d
@@ -367,10 +367,10 @@ class TransactionalStorageTestCase(unittest.NoxTestCase):
 
 def suite(ctxt):
     suite = pyunit.TestSuite()
-    #suite.addTest(TransactionalStorageTestCase("testCreateGet", ctxt))
-    #suite.addTest(TransactionalStorageTestCase("testPutGetModifyGetRemove", ctxt))
-    #suite.addTest(TransactionalStorageTestCase("testTransactions", ctxt))
-    #suite.addTest(TransactionalStorageTestCase("testCreateSchemaCheck", ctxt))
+    suite.addTest(TransactionalStorageTestCase("testCreateGet", ctxt))
+    suite.addTest(TransactionalStorageTestCase("testPutGetModifyGetRemove", ctxt))
+    suite.addTest(TransactionalStorageTestCase("testTransactions", ctxt))
+    suite.addTest(TransactionalStorageTestCase("testCreateSchemaCheck", ctxt))
 
     # Meta tables
 
