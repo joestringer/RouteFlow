@@ -14,7 +14,7 @@
 
 #define SYSLOGFACILITY LOG_LOCAL7
 
-#define RFVS_PREFIX 0x72667673
+#define RFVS_PREFIX 0x7673
 #define IS_RFVS(dp_id) !((dp_id >> 32) ^ RFVS_PREFIX)
 
 #define RF_ETH_PROTO 0x0A0A /* RF ethernet protocol */
