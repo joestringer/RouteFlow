@@ -49,8 +49,10 @@ int add_match(ofp_flow_mod *ofm, const Match& match) {
         case RFMT_IN_PORT:
             ofm_match_in(ofm, static_cast<uint16_t>(match.getUint32()));
             break;
-        case RFMT_IPV6:
         case RFMT_MPLS:
+            ofm_match_mpls(ofm, OFPFW_MPLS_LABEL, match.getUint32(), 0);
+            break;
+        case RFMT_IPV6:
             /* Not implemented in OpenFlow 1.0. */
         default:
             error = -1;
@@ -71,18 +73,25 @@ int add_action(uint8_t *buf, const Action& action) {
 
     switch (action.getType()) {
         case RFAT_OUTPUT:
-            ofm_set_action(oah, OFPAT_OUTPUT, action.getUint16(), 0);
+            ofm_set_action(oah, OFPAT_OUTPUT, action.getUint16(), 0, 0);
             break;
         case RFAT_SET_ETH_SRC:
-            ofm_set_action(oah, OFPAT_SET_DL_SRC, 0, action.getValue());
+            ofm_set_action(oah, OFPAT_SET_DL_SRC, 0, action.getValue(), 0);
             break;
         case RFAT_SET_ETH_DST:
-            ofm_set_action(oah, OFPAT_SET_DL_DST, 0, action.getValue());
+            ofm_set_action(oah, OFPAT_SET_DL_DST, 0, action.getValue(), 0);
             break;
         case RFAT_PUSH_MPLS:
-        case RFAT_POP_MPLS:
+            ofm_set_action(oah, OFPAT_PUSH_MPLS, 0, 0, action.getUint32());
+            /* TODO: Copy TTL */
+            break;
         case RFAT_SWAP_MPLS:
-            /* Not implemented in OpenFlow 1.0. */
+            ofm_set_action(oah, OFPAT_SET_MPLS_LABEL, 0, 0, action.getUint32());
+            break;
+        case RFAT_POP_MPLS:
+            ofm_set_action(oah, OFPAT_PUSH_MPLS, 0, 0, 0);
+            /* TODO: Copy TTL */
+            break;
         default:
             error = -1;
             break;
@@ -146,7 +155,8 @@ size_t ofp_len(const Action& action) {
         case RFAT_PUSH_MPLS:
         case RFAT_POP_MPLS:
         case RFAT_SWAP_MPLS:
-            /* Not implemented in OpenFlow 1.0. */
+            len = sizeof(struct ofp_action_mpls_label);
+            break;
         default:
             break;
     }

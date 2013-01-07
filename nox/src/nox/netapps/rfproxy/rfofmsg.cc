@@ -65,6 +65,28 @@ void ofm_match_dl(ofp_flow_mod* ofm, uint32_t match, uint16_t type,
 }
 
 /**
+ * Match on MPLS
+ *
+ * Applies multiple OFPFW_MPLS_* matches to the FlowMod.
+ *
+ * ofm: FlowMod to add match to
+ * match: Match type (OFPFW_MPLS_LABEL, OFPFW_MPLS_TC)
+ * label: MPLS in_label to match
+ * tc: MPLS traffic class to match
+ */
+void ofm_match_mpls(ofp_flow_mod* ofm, uint32_t match, uint32_t label,
+                    uint8_t tc) {
+    ofm->match.wildcards &= htonl(~match);
+
+    if (match & OFPFW_MPLS_LABEL) {
+        ofm->match.mpls_label = htonl(label);
+    }
+    if (match & OFPFW_MPLS_TC) {
+        ofm->match.mpls_tc = tc;
+    }
+}
+
+/**
  * Match on VLAN attributes
  *
  * Applies multiple OFPFW_DL_VLAN* matches to the FlowMod.
@@ -157,7 +179,7 @@ void ofm_action_init(ofp_action_header* hdr, uint16_t type, uint16_t len) {
  * addr: Value to use if writing DL_SRC, DL_DST
  */
 void ofm_set_action(ofp_action_header* hdr, uint16_t type, uint16_t port,
-                    const uint8_t addr[]) {
+                    const uint8_t addr[], uint32_t label) {
     if (type == OFPAT_OUTPUT) {
         ofp_action_output* action = (ofp_action_output*)hdr;
         ofm_action_init(hdr, type, sizeof(*action));
@@ -171,6 +193,14 @@ void ofm_set_action(ofp_action_header* hdr, uint16_t type, uint16_t port,
         ofm_action_init(hdr, type, sizeof(*action));
 
         memcpy(&action->dl_addr, addr, OFP_ETH_ALEN);
+    } else if (type == OFPAT_SET_MPLS_LABEL || type == OFPAT_PUSH_MPLS) {
+        ofp_action_mpls_label* action = (ofp_action_mpls_label*)hdr;
+        ofm_action_init(hdr, type, sizeof(*action));
+
+        action->mpls_label = htonl((uint32_t)label);
+    } else if (type == OFPAT_POP_MPLS) {
+        ofp_action_mpls_label* action = (ofp_action_mpls_label*)hdr;
+        ofm_action_init(hdr, type, sizeof(*action));
     }
 }
 
