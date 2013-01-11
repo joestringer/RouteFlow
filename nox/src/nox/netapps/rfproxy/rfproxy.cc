@@ -104,6 +104,26 @@ Disposition rfproxy::on_packet_in(const Event& e) {
         return CONTINUE;
     }
 
+#ifdef PRONTO_WORKAROUND
+    Array_buffer new_buf(orig_buf.size());
+    buf = &new_buf;
+
+    /* Pronto switches are known to autotag packets with a VLAN. Remove it. */
+    if (flow->dl_vlan != htons(OFP_VLAN_NONE)) {
+        new_buf.trim(orig_buf.size() - sizeof(vlan_header));
+        uint8_t *orig_data = orig_buf.data();
+        uint8_t *data = new_buf.data();
+        memcpy(data, orig_data, sizeof(eth_header));
+        *((uint16_t *)(data + ETH_ADDR_LEN + ETH_ADDR_LEN)) = flow->dl_type;
+        memcpy(data + sizeof(eth_header),
+               orig_data + sizeof(eth_header) + sizeof(vlan_header),
+               orig_buf.size() - (sizeof(eth_header) + sizeof(vlan_header)));
+    }
+
+    Flow new_flow(in_port, *buf);
+    flow = &new_flow;
+#endif PRONTO_WORKAROUND
+
     // If we have a mapping packet, inform RFServer through a Map message
     if (flow->dl_type == htons(RF_ETH_PROTO)) {
         const eth_data* data = buf->try_pull<eth_data> ();

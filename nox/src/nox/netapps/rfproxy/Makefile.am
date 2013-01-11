@@ -7,6 +7,9 @@ if PY_ENABLED
 AM_CPPFLAGS += $(PYTHON_CPPFLAGS)
 endif # PY_ENABLED 
 
+# Support Pronto VLAN autotagging behaviour
+#AM_CPPFLAGS += -DPRONTO_WORKAROUND
+
 pkglib_LTLIBRARIES =\
 	rfproxy.la
 
