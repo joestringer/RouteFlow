@@ -73,10 +73,10 @@ get_versions() {
     if (echo "$text" | grep -q "Ubuntu"); then
         version=`lsb_release -a 2>/dev/null | grep "Release" | cut -f2`
 
-        # Versions prior to Ubuntu 12.04 don't supply MongoDB-2.0 and OVS-1.4.
+        # Versions prior to Ubuntu 12.04 don't supply MongoDB-2.0 and OVS.
         if (verlt $version "12.04"); then
             MONGO_VERSION="2.0.9"
-            OVS_VERSION="1.4.6"
+            OVS_VERSION="1.9.0"
         fi
 
         if (verlt $version "12.04"); then
@@ -127,7 +127,7 @@ build_routeflow() {
     for arg in $@; do
         case $arg in
             nox) . $RFDIR/dist/build_nox.sh; get_nox;;
-            ryu) . $RFDIR/dist/build_ryu.sh; get_ryu;;
+            ryu) OVS_VERSION="1.10.0"; . $RFDIR/dist/build_ryu.sh; get_ryu;;
         esac
     done
 

@@ -6,9 +6,8 @@ RYU_BRANCH="origin/master"
 RYU_DEPS="python-gevent python-webob python-routes"
 
 get_ryu() {
-    # TODO: This recommendation should be revisited after the ovs-1.10+ release
     if [ "$OVS_VERSION" != "git" ]; then
-        print_status "We recommend using ovs-git with Ryu for OF1.2+ Support" \
+        print_status "We recommend using ovs-1.10.0 or above with Ryu for OF1.2+ Support" \
             $YELLOW
     fi
 
