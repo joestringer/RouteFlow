@@ -1,9 +1,10 @@
 #!/bin/sh
 
-RYU_GIT="https://github.com/joestringer/ryu-rfproxy.git"
+RYU_GIT="https://github.com/routeflow/ryu-rfproxy.git"
 RYU_BRANCH="origin/master"
 
-RYU_DEPS="python-gevent python-webob python-routes"
+RYU_DEPS="python-greenlet python-eventlet python-webob python-routes"
+RYU_VERSION="2.0"
 
 get_ryu() {
     if [ "$OVS_VERSION" != "git" ]; then
@@ -11,11 +12,12 @@ get_ryu() {
             $YELLOW
     fi
 
-    pkg_install "$MONGO_DEPS"
+    pkg_install "$RYU_DEPS"
     print_status "Fetching Ryu controller"
 
     if [ $FETCH_ONLY -ne 1 ]; then
-        $SUPER pip install oslo.config ryu || fail "Failed to fetch ryu controller"
+        $SUPER pip install oslo.config ryu==$RYU_VERSION ||
+            fail "Failed to fetch ryu controller"
     fi
 
     fetch "ryu-" "rfproxy" $RYU_GIT $RYU_BRANCH ||

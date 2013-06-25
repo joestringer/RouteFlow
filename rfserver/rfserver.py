@@ -416,7 +416,7 @@ class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
 if __name__ == "__main__":
     description='RFServer co-ordinates RFClient and RFProxy instances, ' \
                 'listens for route updates, and configures flow tables'
-    epilog='Report bugs to: https://github.com/CPqD/RouteFlow/issues'
+    epilog='Report bugs to: https://github.com/routeflow/RouteFlow/issues'
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
     parser.add_argument('configfile',

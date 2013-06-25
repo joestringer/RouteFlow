@@ -13,7 +13,8 @@ SOURCE_FILES := $(wildcard *.$(SOURCE_SUFIX))
 RFLIBS := $(addprefix $(BUILD_LIB_DIR)/,$(RFLIB_NAME))
 RFLIBS := $(addsuffix .$(LIBSUFFIX),$(RFLIBS))
 
-LNX_LIBS := -lrt -lnetlink -lutil -lpthread -lmongoclient -lboost_thread -lboost_system -lboost_filesystem -lboost_program_options
+BOOST_LIBS := -lboost_thread -lboost_system -lboost_filesystem -lboost_program_options
+LNX_LIBS := -lrt -lnetlink -lutil -lpthread -lmongoclient $(BOOST_LIBS)
 
 CPPFLAGS += -I$(LIB_DIR)
 CPPFLAGS += $(addprefix -I$(LIB_DIR)/,$(libdirs))

@@ -1,7 +1,7 @@
 # Welcome
 This version of RouteFlow is a beta developers' release intended to evaluate RouteFlow for providing virtualized IP routing services on one or more OpenFlow switches.
 
-You can learn more about RouteFlow in our [main page in GitHub](http://cpqd.github.com/RouteFlow/) and in our [website](https://sites.google.com/site/routeflow/).
+You can learn more about RouteFlow in our [main page in GitHub](http://routeflow.github.io/RouteFlow/) and in our [website](https://sites.google.com/site/routeflow/).
 
 Please be aware of POX, OpenFlow, Open vSwitch, Quagga, MongoDB, jQuery, JIT and RouteFlow licenses and terms.
 
@@ -60,7 +60,7 @@ sudo apt-get install build-essential git libboost-dev \
 
 2. Clone RouteFlow's repository on GitHub:
 ```
-$ git clone git://github.com/CPqD/RouteFlow.git
+$ git clone git://github.com/routeflow/RouteFlow.git
 ```
 
 3. Build `rfclient`
@@ -104,7 +104,7 @@ $ sudo lxc-console -n b1
 # ping 172.31.2.2
 ```
 
-For more details on this test, see its [tutorial](https://github.com/CPqD/RouteFlow/wiki/Tutorial-1:-rftest1).
+For more details on this test, see its [tutorial](https://github.com/routeflow/RouteFlow/wiki/Tutorial-1:-rftest1).
 
 ### rftest2
 This test should be run with a [Mininet](http://mininet.org/) simulated network.
@@ -134,20 +134,20 @@ mininet> pingall
 mininet> h2 ping h3
 ```
 
-For more details on this test, see its [tutorial](https://github.com/CPqD/RouteFlow/wiki/Tutorial-2:-rftest2).
+For more details on this test, see its [tutorial](https://github.com/routeflow/RouteFlow/wiki/Tutorial-2:-rftest2).
 
 
 # Now what?
-If you want to use the web interface to inspect RouteFlow behavior, see the wiki page on [rfweb](https://github.com/CPqD/RouteFlow/wiki/The-web-interface).
+If you want to use the web interface to inspect RouteFlow behavior, see the wiki page on [rfweb](https://github.com/routeflow/RouteFlow/wiki/The-web-interface).
 
-If you want to create your custom configurations schemes for a given setup, check out the [configuration section of the first tutorial](https://github.com/CPqD/RouteFlow/wiki/Tutorial-1:-rftest1#configuration-file) and the guide on [how to create your virtual environment](https://github.com/CPqD/RouteFlow/wiki/Virtual-environment-creation).
+If you want to create your custom configurations schemes for a given setup, check out the [configuration section of the first tutorial](https://github.com/routeflow/RouteFlow/wiki/Tutorial-1:-rftest1#configuration-file) and the guide on [how to create your virtual environment](https://github.com/routeflow/RouteFlow/wiki/Virtual-environment-creation).
 
-If you're developing for RouteFlow, there are more advanced options and components that can be installed through the `build.sh` script. See its [source](https://github.com/CPqD/RouteFlow/blob/master/build.sh) for more information.
+If you're developing for RouteFlow, there are more advanced options and components that can be installed through the `build.sh` script. See its [source](https://github.com/routeflow/RouteFlow/blob/master/build.sh) for more information.
 
 
 # Support
 If you want to know more or need to contact us regarding the project for anything (questions, suggestions, bug reports, discussions about RouteFlow and SDN in general) you can use the following resources:
-* RouteFlow repository [wiki](https://github.com/CPqD/RouteFlow/wiki) and [issues](https://github.com/CPqD/RouteFlow/issues) in GitHub
+* RouteFlow repository [wiki](https://github.com/routeflow/RouteFlow/wiki) and [issues](https://github.com/routeflow/RouteFlow/issues) in GitHub
 
 * Google Groups [mailing list](http://groups.google.com/group/routeflow-discuss?hl=en_US)
 

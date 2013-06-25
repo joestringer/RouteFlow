@@ -21,8 +21,9 @@ install_ovs() {
     status=$?
     if [ $status -eq 1 ]; then
         $SUPER echo "openvswitch" >>/etc/modules || return 1
-    elif [ $status -ne 0 ]; then
-        print_status "Can't add openvswitch_mod to /etc/modules" $YELLOW
+        if [ $status -ne 0 ]; then
+            print_status "Can't add openvswitch_mod to /etc/modules" $YELLOW
+        fi
     fi
 
     $SUPER mkdir -p /usr/local/etc/openvswitch
@@ -65,6 +66,7 @@ build_ovs() {
 get_ovs() {
     if [ "$1" = "deb" ]; then
         pkg_install "$OVS_BINARY"
+        $SUPER module-assistant prepare
         $SUPER module-assistant auto-install openvswitch-datapath
     else
         build_ovs $@
