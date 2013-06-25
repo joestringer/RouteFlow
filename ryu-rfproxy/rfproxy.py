@@ -1,6 +1,5 @@
 import struct
 import logging
-import gevent
 
 import pymongo as mongo
 
@@ -18,6 +17,7 @@ from ryu.controller.handler import *
 from ryu.ofproto import ofproto_v1_2
 from ryu.lib.mac import *
 from ryu.lib.dpid import *
+from ryu.lib import hub
 from ryu.controller import dpset
 
 log = logging.getLogger('ryu.app.rfproxy')
@@ -86,12 +86,11 @@ class Table:
     # If a packet comes and matches the invalid mapping, it can be redirected
     # to the wrong places. We have to fix this.
 
-def gevent_thread_wrapper(target, args=()):
-    return gevent.Greenlet(target, *args)
+def hub_thread_wrapper(target, args=()):
+    result = hub.spawn(target, *args)
+    result.start = lambda: target
+    return result
 
-ID = 0
-ipc = MongoIPC.MongoIPCMessageService(MONGO_ADDRESS, MONGO_DB_NAME, str(ID),
-                                      gevent_thread_wrapper, gevent.sleep)
 table = Table()
 datapaths = Datapaths()
 
@@ -126,7 +125,11 @@ class RFProxy(app_manager.RyuApp):
 
   def __init__(self, *args, **kwargs):
     super(RFProxy, self).__init__(*args, **kwargs)
-    ipc.listen(RFSERVER_RFPROXY_CHANNEL, RFProtocolFactory(), RFProcessor(),
+
+    ID = 0
+    self.ipc = MongoIPC.MongoIPCMessageService(MONGO_ADDRESS, MONGO_DB_NAME, str(ID),
+                                      hub_thread_wrapper, hub.sleep)
+    self.ipc.listen(RFSERVER_RFPROXY_CHANNEL, RFProtocolFactory(), RFProcessor(),
                False)
     log.info("RFProxy running.")
 
@@ -142,14 +145,14 @@ class RFProxy(app_manager.RyuApp):
       for port in ports:
         if port <= ofproto_v1_2.OFPP_MAX:
           msg = DatapathPortRegister(dp_id=dpid, dp_port=port)
-          ipc.send(RFSERVER_RFPROXY_CHANNEL, RFSERVER_ID, msg)
+          self.ipc.send(RFSERVER_RFPROXY_CHANNEL, RFSERVER_ID, msg)
           log.info("Registering datapath port (dp_id=%s, dp_port=%d)", dpid_to_str(dpid), port)
     elif dpid is not None:
       log.info("Datapath is down (dp_id=%s)", dpid_to_str(dpid))
       datapaths.unregister(dp)
       table.delete_dp(dpid)
       msg = DatapathDown(dp_id=dpid)
-      ipc.send(RFSERVER_RFPROXY_CHANNEL, RFSERVER_ID, msg)
+      self.ipc.send(RFSERVER_RFPROXY_CHANNEL, RFSERVER_ID, msg)
 
 
   @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
@@ -173,7 +176,7 @@ class RFProxy(app_manager.RyuApp):
       log.info("Received mapping packet (vm_id=%s, vm_port=%d, vs_id=%s, vs_port=%d)",
             format_id(vm_id), vm_port, dpid_to_str(dpid), in_port)
       msg = VirtualPlaneMap(vm_id=vm_id, vm_port=vm_port, vs_id=dpid, vs_port=in_port)
-      ipc.send(RFSERVER_RFPROXY_CHANNEL, RFSERVER_ID, msg)
+      self.ipc.send(RFSERVER_RFPROXY_CHANNEL, RFSERVER_ID, msg)
       return
 
     # If the packet came from RFVS, redirect it to the right switch port
