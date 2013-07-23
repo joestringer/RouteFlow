@@ -20,6 +20,34 @@
             "items": {
                 "$ref": "#/definitions/inter-switch-link"
             }
+        },
+        "default-rules": {
+            "properties" : {
+                "lowest" : {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/flow"
+                    }
+                },
+                "low" : {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/flow"
+                    }
+                },
+                "high" : {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/flow"
+                    }
+                },
+                "highest" : {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/flow"
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -158,6 +186,62 @@
                     "items": {
                         "$ref": "#/definitions/mac-addr"
                     }
+                }
+            }
+        },
+        "flow": {
+            "required": [
+                "name",
+                "match",
+                "destination"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "match": {
+                    "properties": {
+                        "dl-type": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "pattern": "^(?:0x)?[a-fA-F0-9]{4}$"
+                            }
+                        },
+                        "dl-addr": {
+                            "$ref": "#/definitions/mac-addr"
+                        },
+                        "nw-addr": {
+                            "type": "string",
+                            "anyOf": [
+                                { "format": "ipv4" },
+                                { "format": "ipv6" }
+                            ]
+                        },
+                        "nw-proto": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255
+                        },
+                        "tp-port": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 65535
+                        }
+                    }
+                },
+                "destination": {
+                    "type": "string",
+                    "enum": [
+                        "drop",
+                        "controller"
+                    ]
+                },
+                "vs-only": {
+                    "type": "boolean"
                 }
             }
         }
