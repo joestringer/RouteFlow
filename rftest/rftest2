@@ -16,6 +16,7 @@ if [ -d ./build ]; then
 else
     RF_HOME=..
 fi
+RFSERVER_CONFIG=rftest/rftest2config.json
 export PATH=$PATH:/usr/local/bin:/usr/local/sbin
 export PYTHONPATH=$PYTHONPATH:$RF_HOME
 
@@ -126,7 +127,7 @@ cd -
 wait_port_listen $CONTROLLER_PORT
 
 echo_bold "-> Starting RFServer..."
-./rfserver/rfserver.py rftest/rftest2config.csv &
+./rfserver/rfserver.py $RFSERVER_CONFIG &
 
 echo_bold "-> Starting the control plane network (dp0 VS)..."
 ovs-vsctl add-br dp0

@@ -6,6 +6,8 @@ import sys
 import logging
 import binascii
 import argparse
+import json
+import jsonschema
 
 from bson.binary import Binary
 
@@ -34,7 +36,16 @@ class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
         if args.verbose:
             self.log.setLevel(logging.DEBUG)
 
-        self.config = RFConfig(args.configfile)
+        with open(args.schema) as s:
+            self.log.debug("Reading schema %s" % (args.schema))
+            self.schema = json.load(s)
+
+        with open(args.configfile) as f:
+            self.log.debug("Reading config %s" % (args.configfile))
+            cfg = json.load(f)
+        jsonschema.validate(cfg, self.schema)
+        self.config = RFConfig(cfg)
+
         self.islconf = RFISLConf(args.islconfig)
 
         # Initialise state tables
@@ -422,14 +433,18 @@ if __name__ == "__main__":
                   'listens for route updates, and configures flow tables'
     epilog = 'Report bugs to: https://github.com/routeflow/RouteFlow/issues'
 
-    config = os.path.dirname(os.path.realpath(__file__)) + "/config.csv"
-    islconf = os.path.dirname(os.path.realpath(__file__)) + "/islconf.csv"
+    path = os.path.dirname(os.path.realpath(__file__))
+    config = path + "/config.json"
+    islconf = path + "/islconf.csv"
+    schema = path + "/config.schema"
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
     parser.add_argument('configfile', default=config,
                         help='VM-VS-DP mapping configuration file')
     parser.add_argument('-i', '--islconfig', default=islconf,
                         help='ISL mapping configuration file')
+    parser.add_argument('-s', '--schema', default=schema,
+                        help='Configuration schema for RFServer')
     parser.add_argument('-v', '--verbose', action="store_true", default=False,
                         help='Sets the maximum logging verbosity level')
 
