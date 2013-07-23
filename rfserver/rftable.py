@@ -1,5 +1,6 @@
 from rflib.defs import *
 from rflib.util import load_from_dict, pack_into_dict
+from rfrule import RFRuleEntry, parse_rule_cfg
 
 if DB_TYPE == 'memory':
     from MemoryTable import MemoryTable as TableBase
@@ -18,6 +19,7 @@ RFENTRY = 0
 RFCONFIGENTRY = 1
 RFISLCONFENTRY = 2
 RFISLENTRY = 3
+RFRULEENTRY = 4
 
 class EntryFactory:
     @staticmethod
@@ -30,6 +32,8 @@ class EntryFactory:
             return RFISLEntry()
         elif type_ == RFISLCONFENTRY:
             return RFISLConfEntry()
+        elif type_ == RFRULEENTRY:
+            return RFRuleEntry()
 
 class EntryTable(TableBase):
     def __init__(self, name, entry_type):
@@ -148,6 +152,34 @@ class RFConfig(EntryTable):
         if not result:
             return None
         return result[0]
+
+
+class RFRuleTable(EntryTable):
+    def __init__(self, config):
+        EntryTable.__init__(self, RFRULE_NAME, RFRULEENTRY)
+        self.configure(config)
+
+    def configure(self, config):
+        """Configure default flow entries for datapaths.
+
+        Validation of the json against the config schema is expected before
+        handing it to this function.
+
+        Keyword arguments:
+        config -- A JSON configuration that matches "rfserver/config.schema"
+        """
+        flows = parse_rule_cfg(config)
+        for flow in flows:
+            self.set_entry(flow)
+
+    def get_rule_entries(self, vs_only, priority=None):
+        result = []
+        if priority is None:
+            result = self.get_entries(vs_only=vs_only)
+        else:
+            result = self.get_entries(vs_only=vs_only, priority=priority)
+        return [entry.routemod for entry in result]
+
 
 class RFISLTable(EntryTable):
     def __init__(self):
