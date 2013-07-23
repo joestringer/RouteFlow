@@ -1,0 +1,165 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "description": "JSON Schema for RouteFlow configuration",
+    "properties": {
+        "port-groups": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/port-group"
+            }
+        },
+        "virtual-machines": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/virtual-machine"
+            }
+        },
+        "inter-switch-links": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/inter-switch-link"
+            }
+        }
+    },
+    "definitions": {
+        "hex-id": {
+            "type": "string",
+            "pattern": "^(?:0x)?[a-fA-F0-9]{1,16}$"
+        },
+        "mac-addr": {
+            "type": "string",
+            "pattern": "^([a-fA-F0-9]{2}:){5}[a-fA-F0-9]{2}$"
+        },
+        "port-group": {
+            "required": [
+                "name",
+                "dp-id",
+                "port-offset",
+                "num-ports"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "dp-id": {
+                    "$ref": "#/definitions/hex-id"
+                },
+                "port-offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65280
+                },
+                "num-ports": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65280
+                },
+                "controller": {
+                    "type": "integer"
+                }
+            }
+        },
+        "port-mapping": {
+            "required": [
+                "port-group"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "port-offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65280
+                },
+                "num-port": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65280
+                },
+                "port-group": {
+                    "type": "string"
+                }
+            }
+
+        },
+        "virtual-machine": {
+            "required": [
+                "vm-id",
+                "mappings"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "vm-id": {
+                    "$ref": "#/definitions/hex-id"
+                },
+                "mappings": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/definitions/port-mapping"
+                    }
+                },
+                "internal-links": {
+                    "$ref": "#/definitions/inter-switch-link"
+                }
+            }
+        },
+        "inter-switch-link": {
+            "required": [
+                "vm-id",
+                "datapaths",
+                "ports",
+                "dl-addrs"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "vm-id": {
+                    "$ref": "#/definitions/hex-id"
+                },
+                "controllers": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "datapaths": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                        "$ref": "#/definitions/hex-id"
+                    }
+                },
+                "ports": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 65280
+                    }
+                },
+                "dl-addrs": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                        "$ref": "#/definitions/mac-addr"
+                    }
+                }
+            }
+        }
+    }
+}
