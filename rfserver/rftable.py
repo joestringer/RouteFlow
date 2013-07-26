@@ -99,16 +99,47 @@ class RFTable(MongoTable):
 
 
 class RFConfig(MongoTable):
-    def __init__(self, ifile, address=MONGO_ADDRESS):
+    def __init__(self, config, address=MONGO_ADDRESS):
         MongoTable.__init__(self, address, RFCONFIG_NAME, RFCONFIGENTRY)
-        # TODO: perform validation of config
-        configfile = file(ifile)
-        lines = configfile.readlines()[1:]
-        entries = [line.strip("\n").split(",") for line in lines]
-        for (a, b, c, d, e) in entries:
-            self.set_entry(RFConfigEntry(vm_id=int(a, 16), vm_port=int(b),
-                                         ct_id=int(c), dp_id=int(d, 16),
-                                         dp_port=int(e)))
+        self.configure(config)
+
+    def configure(self, config):
+        """Configure VM<->datapath port mappings.
+
+        Validation of the json against the config schema is expected before
+        handing it to this function. Furthermore, this function will not catch
+        errors related to mismatching configuration (e.g., referencing
+        undefined port-groups). The caller is expected to handle this type of
+        error checking.
+
+        Keyword arguments:
+        config -- A JSON configuration that matches "rfserver/config.schema"
+        """
+        port_groups = {}
+        for pg in config["port-groups"]:
+            port_groups[pg["name"]] = pg
+
+        for vm in config["virtual-machines"]:
+            vm_id = int(vm["vm-id"], 16)
+            for pm in vm["mappings"]:
+                pg = pm["port-group"]
+                if port_groups[pg]["num-ports"] != pm["num-ports"]:
+                    continue
+
+                dp_id = int(port_groups[pg]["dp-id"], 16)
+                dp_port = port_groups[pg]["port-offset"]
+                ct_id = 0
+                try:
+                    ct_id = port_groups[pg]["controller"]
+                except KeyError:
+                    ct_id = 0
+
+                for i in range(pm["num-ports"]):
+                    vm_port = pm["port-offset"] + i
+                    entry = RFConfigEntry(vm_id, vm_port, ct_id,
+                                          dp_id, dp_port)
+                    self.set_entry(entry)
+                    dp_port = dp_port + 1
 
     def get_config_for_vm_port(self, vm_id, vm_port):
         result = self.get_entries(vm_id=vm_id,

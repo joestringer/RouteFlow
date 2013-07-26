@@ -13,6 +13,7 @@ MONGODB_PORT=27017
 MONGODB_ADDR="192.168.10.1"
 CONTROLLER_PORT=6633
 RF_HOME=..
+RFSERVER_CONFIG=rftest/rftest1config.json
 export PATH=$PATH:/usr/local/bin:/usr/local/sbin
 export PYTHONPATH=$PYTHONPATH:$RF_HOME
 
@@ -142,7 +143,7 @@ if [ "$ACTION" != "RESET" ]; then
     wait_port_listen $CONTROLLER_PORT
 
     echo_bold "-> Starting RFServer..."
-    ./rfserver/rfserver.py rftest/rftest1config.csv &
+    ./rfserver/rfserver.py $RFSERVER_CONFIG &
 
     echo_bold "-> Starting the control plane network (dp0 VS)..."
     ovs-vsctl add-br dp0

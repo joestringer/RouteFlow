@@ -1,0 +1,24 @@
+{
+    "port-groups": [
+        {
+            "name": "Group A",
+            "description": "Group A consists of ports 1-2 this datapath",
+            "dp-id": "0x99",
+            "port-offset": 1,
+            "num-ports": 2
+        }
+    ],
+    "virtual-machines": [
+        {
+            "vm-id": "0x12A0A0A0A0A0",
+            "mappings": [
+                {
+                    "description": "Map VM ports 1-2 to Group A",
+                    "port-offset": 1,
+                    "num-ports": 2,
+                    "port-group": "Group A"
+                }
+            ]
+        }
+    ]
+}
