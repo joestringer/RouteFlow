@@ -1,0 +1,47 @@
+{
+    "port-groups": [
+        {
+            "name": "Group A",
+            "description": "Group A consists of port 1 this datapath",
+            "dp-id": "0x99",
+            "port-offset": 1,
+            "num-ports": 1,
+            "controller": 0
+        },
+        {
+            "name": "Group B",
+            "description": "Group B consists of port 1 on another datapath.",
+            "dp-id": "0x9A",
+            "port-offset": 1,
+            "num-ports": 1,
+            "controller": 0
+        }
+    ],
+    "virtual-machines": [
+        {
+            "vm-id": "0x12A0A0A0A0A0",
+            "mappings": [
+                {
+                    "description": "Map VM port 1 to Group A",
+                    "port-offset": 1,
+                    "num-ports": 1,
+                    "port-group": "Group A"
+                },
+                {
+                    "description": "Map VM port 2 to Group B",
+                    "port-offset": 2,
+                    "num-ports": 1,
+                    "port-group": "Group B"
+                }
+            ]
+        }
+    ],
+    "inter-switch-links": [
+        {
+            "description": "Link port 2 of 0x99 to port 2 of 0x9A",
+            "datapaths": [ "0x99", "0x9A" ],
+            "ports": [ 2, 2 ],
+            "dl-addrs": [ "66:FD:B5:BE:39:77", "6E:71:60:A9:B9:8D" ]
+        }
+    ]
+}

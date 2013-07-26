@@ -42,7 +42,17 @@ class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
         jsonschema.validate(cfg, self.schema)
         self.config = RFConfig(cfg)
 
-        self.islconf = RFISLConf(islconffile)
+        try:
+            with open(islconffile) as f:
+                print("Reading islconfig %s" % (configfile))
+                islcfg = json.load(f)
+        except:
+            print("Defaulting to no ISL config")
+            islcfg = ''
+            pass
+        if islcfg != '':
+            jsonschema.validate(islcfg, self.schema)
+        self.islconf = RFISLConf(islcfg)
 
         # Initialise state tables
         self.rftable = RFTable()
@@ -432,7 +442,7 @@ if __name__ == "__main__":
     epilog = 'Report bugs to: https://github.com/routeflow/RouteFlow/issues'
 
     config = os.path.dirname(os.path.realpath(__file__)) + "/config.json"
-    islconf = os.path.dirname(os.path.realpath(__file__)) + "/islconf.csv"
+    islconf = os.path.dirname(os.path.realpath(__file__)) + "/islconf.json"
     schema = os.path.dirname(os.path.realpath(__file__)) + "/config.schema"
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
