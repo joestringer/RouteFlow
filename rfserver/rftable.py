@@ -173,23 +173,34 @@ class RFISLTable(EntryTable):
     def is_dp_registered(self, ct_id, dp_id):
         return bool(self.get_dp_entries(ct_id, dp_id))
 
+
 class RFISLConf(EntryTable):
-    def __init__(self, ifile):
+    def __init__(self, config):
         EntryTable.__init__(self, RFISLCONF_NAME, RFISLCONFENTRY)
-        # TODO: perform validation of config
-        try:
-            internalfile = file(ifile)
-        except:
-            # Default to no ISL config
-            return
-        lines = internalfile.readlines()[1:]
-        entries = [line.strip("\n").split(",") for line in lines]
-        for (a, b, c, d, e, f, g, h, i) in entries:
-            self.set_entry(RFISLConfEntry(vm_id=int(a, 16), ct_id=int(b),
-                                          dp_id=int(c, 16), dp_port=int(d),
-                                          eth_addr=e, rem_ct=int(f),
-                                          rem_id=int(g, 16), rem_port=int(h),
-                                          rem_eth_addr=i))
+
+        if config != '':
+            self.configure(config)
+
+    def configure(self, config):
+        for isl in config["inter-switch-links"]:
+            dp1 = int(isl["datapaths"][0], 16)
+            dp2 = int(isl["datapaths"][1], 16)
+            port1 = isl["ports"][0]
+            port2 = isl["ports"][1]
+            eth1 = isl["dl-addrs"][0]
+            eth2 = isl["dl-addrs"][1]
+
+            try:
+                ct1 = isl["controllers"][0]
+                ct2 = isl["controllers"][0]
+            except KeyError:
+                ct1 = ct2 = 0
+
+            vm_id = isl["vm-id"]
+            self.set_entry(RFISLConfEntry(vm_id=vm_id, ct_id=ct1, rem_ct=ct2,
+                                          dp_id=dp1, rem_id=dp2,
+                                          dp_port=port1, rem_port=port2,
+                                          eth_addr=eth1, rem_eth_addr=eth2))
 
     def get_entries_by_port(self, ct, id_, port):
         results = self.get_entries(ct_id=ct, dp_id=id_, dp_port=port)

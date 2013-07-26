@@ -46,7 +46,17 @@ class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
         jsonschema.validate(cfg, self.schema)
         self.config = RFConfig(cfg)
 
-        self.islconf = RFISLConf(args.islconfig)
+        try:
+            with open(args.islconfig) as f:
+                self.log.debug("Reading islconfig %s" % (args.islconfig))
+                islcfg = json.load(f)
+        except:
+            self.log.debug("Defaulting to no ISL config")
+            islcfg = ''
+            pass
+        if islcfg != '':
+            jsonschema.validate(islcfg, self.schema)
+        self.islconf = RFISLConf(islcfg)
 
         # Initialise state tables
         self.rftable = RFTable()
@@ -435,7 +445,7 @@ if __name__ == "__main__":
 
     path = os.path.dirname(os.path.realpath(__file__))
     config = path + "/config.json"
-    islconf = path + "/islconf.csv"
+    islconf = path + "/islconf.json"
     schema = path + "/config.schema"
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
