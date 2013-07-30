@@ -430,7 +430,4 @@ if __name__ == "__main__":
                         help='ISL mapping configuration file')
 
     args = parser.parse_args()
-    try:
-        RFServer(args.configfile, args.islconfig)
-    except IOError:
-        sys.exit("Error opening file: {}".format(args.configfile))
+    RFServer(args.schema, args.configfile, args.islconfig)
