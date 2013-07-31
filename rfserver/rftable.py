@@ -2,6 +2,10 @@ import pymongo as mongo
 
 from rflib.defs import *
 from rflib.ipc.MongoIPC import format_address
+from rflib.ipc.RFProtocol import RouteMod
+from rflib.types.Match import *
+from rflib.types.Action import *
+from rflib.types.Option import *
 
 RFENTRY_IDLE_VM_PORT = 1
 RFENTRY_IDLE_DP_PORT = 2
@@ -15,6 +19,7 @@ RFENTRY = 0
 RFCONFIGENTRY = 1
 RFISLCONFENTRY = 2
 RFISLENTRY = 3
+RFRULEENTRY = 4
 
 
 class MongoTableEntryFactory:
@@ -28,6 +33,8 @@ class MongoTableEntryFactory:
             return RFISLEntry()
         elif type_ == RFISLCONFENTRY:
             return RFISLConfEntry()
+        elif type_ == RFRULEENTRY:
+            return RFRuleEntry()
 
 
 class MongoTable:
@@ -155,6 +162,104 @@ class RFConfig(MongoTable):
         if not result:
             return None
         return result[0]
+
+
+class RFRuleTable(MongoTable):
+    def __init__(self, config, address=MONGO_ADDRESS):
+        MongoTable.__init__(self, address, RFRULE_NAME, RFRULEENTRY)
+        self.configure(config)
+
+    def configure(self, config):
+        """Configure default flow entries for datapaths.
+
+        Validation of the json against the config schema is expected before
+        handing it to this function.
+
+        Keyword arguments:
+        config -- A JSON configuration that matches "rfserver/config.schema"
+        """
+        priorities = [PRIORITY_LOWEST, PRIORITY_LOW, PRIORITY_HIGH,
+                      PRIORITY_HIGHEST]
+        pindex = ["lowest", "low", "high", "highest"]
+
+        for p, pi in enumerate(pindex):
+            try:
+                ruleset = config["default-rules"][pi]
+            except KeyError:
+                continue
+
+            for rule in ruleset:
+                flows = []
+                rm = RouteMod(RMT_ADD)
+
+                name = rule["name"]
+                priority = priorities[p]
+                rm.add_option(Option.PRIORITY(priority))
+                try:
+                    vs_only = rule["vs-only"]
+                except KeyError:
+                    vs_only = False
+                if rule["destination"] == "controller":
+                    rm.add_action(Action.CONTROLLER())
+                else:  # No action means "drop"
+                    pass
+                try:
+                    rm.add_match(Match.ETHERNET(rule["match"]["dl-addr"]))
+                except KeyError:
+                    pass
+                try:
+                    rm.add_match(Match.NW_PROTO(rule["match"]["nw-proto"]))
+                except KeyError:
+                    pass
+                try:
+                    ip_type = Match.IPV4
+                    prefix = IPV4_MASK_EXACT
+                    if ":" in rule["match"]["nw-addr"]:
+                        ip_type = Match.IPV6
+                        prefix = IPV6_MASK_EXACT
+                    rm.add_match(ip_type(rule["match"]["nw-addr"], prefix))
+                except KeyError:
+                    pass
+
+                # We have a base routemod with common matches now.
+                flows.append(rm)
+                try:
+                    ethertypes = rule["match"]["dl-type"]
+                    flows2 = []
+                    for flow in flows:
+                        for eth in ethertypes:
+                            new = flow.to_dict()
+                            ethtype = int(eth, 16)
+                            new["matches"].append(
+                                    Match.ETHERTYPE(ethtype).to_dict())
+                            flows2.append(Match.from_dict(new))
+                    flows = flows2
+                except KeyError:
+                    pass
+
+                try:
+                    port = rule["match"]["tp-port"]
+                    flows2 = []
+                    for flow in flows:
+                        for tp_type in [Match.TP_SRC, Match.TP_DST]:
+                            new = flow.to_dict()
+                            new["matches"].append(tp_type(port).to_dict())
+                            flows2.append(Match.from_dict(new))
+                    flows = flows2
+                except KeyError:
+                    pass
+                for flow in flows:
+                    self.set_entry(RFRuleEntry(name, priority, vs_only, flow))
+
+    def get_rule_entries(self, vs_only, priority=None):
+        result = []
+        if priority is None:
+            result = self.get_entries(vs_only=vs_only)
+        else:
+            result = self.get_entries(vs_only=vs_only, priority=priority)
+        for entry in result:
+            print("entry: %s" % entry.name)
+        return [entry.routemod for entry in result]
 
 
 class RFISLTable(MongoTable):
@@ -547,4 +652,42 @@ class RFConfigEntry:
         pack_into_dict(data, self, "ct_id")
         pack_into_dict(data, self, "dp_id")
         pack_into_dict(data, self, "dp_port")
+        return data
+
+
+class RFRuleEntry:
+    def __init__(self, name="", priority=None, vs_only=None, routemod=None):
+        self.id = None
+        self.name = name
+        self.priority = priority
+        self.vs_only = vs_only
+        self.routemod = routemod
+
+    def __str__(self):
+        return "priority: %s vs-only: %s routemod: %s"\
+                % (str(self.priority), str(self.vs_only), str(self.routemod))
+
+    def from_dict(self, data):
+        for k, v in data.items():
+            if str(v) is "":
+                data[k] = None
+            elif k == "priority":
+                data[k] = int(v)
+            elif k == "vs_only":
+                data[k] = bool(v)
+        self.id = data["_id"]
+        load_from_dict(data, self, "name")
+        load_from_dict(data, self, "priority")
+        load_from_dict(data, self, "vs_only")
+        self.routemod = RouteMod()
+        self.routemod.from_dict(data["routemod"])
+
+    def to_dict(self):
+        data = {}
+        if self.id is not None:
+            data["_id"] = self.id
+        pack_into_dict(data, self, "name")
+        pack_into_dict(data, self, "priority")
+        pack_into_dict(data, self, "vs_only")
+        data["routemod"] = self.routemod.to_dict()
         return data

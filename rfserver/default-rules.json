@@ -1,0 +1,121 @@
+{
+    "default-rules": {
+        "lowest": [
+            {
+                "name" : "Drop",
+                "description" : "Default rule to drop all traffic",
+                "match" : { },
+                "destination" : "drop"
+            }
+        ],
+        "high": [
+            {
+                "name" : "rfmap",
+                "description" : "Allow RouteFlow mapping packets",
+                "match" : {
+                    "dl-type" : ["0x0A0A"]
+                },
+                "destination" : "controller",
+                "vs-only" : true
+            },
+            {
+                "name" : "ARP",
+                "match" : {
+                    "dl-type" : ["0x0806"]
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "ICMP",
+                "match" : {
+                    "dl-type" : ["0x0800"],
+                    "nw-proto" : 1
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "ICMPv6",
+                "match" : {
+                    "dl-type" : ["0x86dd"],
+                    "nw-proto" : 58
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "DHCP",
+                "match" : {
+                    "dl-type" : ["0x0800"],
+                    "nw-proto" : 17,
+                    "tp-port" : 67
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "DHCPv6",
+                "match" : {
+                    "dl-type" : ["0x86dd"],
+                    "nw-proto" : 17,
+                    "tp-port" : 547
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "BGP",
+                "match" : {
+                    "dl-type" : [
+                        "0x0800",
+                        "0x86dd"
+                    ],
+                    "nw-proto" : 6,
+                    "tp-port" : 179
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "LDP",
+                "match" : {
+                    "dl-type" : [
+                        "0x0800",
+                        "0x86dd"
+                    ],
+                    "nw-proto" : 6,
+                    "tp-port" : 646
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "OSPF",
+                "match" : {
+                    "dl-type" : [
+                        "0x0800",
+                        "0x86dd"
+                    ],
+                    "nw-proto" : 89
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "RIPv2",
+                "match" : {
+                    "dl-type" : ["0x0800"],
+                    "nw-proto" : 17,
+                    "nw-addr" : "224.0.0.9",
+                    "tp-port" : 520
+                },
+                "destination" : "controller"
+            },
+            {
+                "name" : "RIPng",
+                "match" : {
+                    "dl-type" : [
+                        "0x0800",
+                        "0x86dd"
+                    ],
+                    "nw-proto" : 17,
+                    "tp-port" : 521
+                },
+                "destination" : "controller"
+            }
+        ]
+    }
+}

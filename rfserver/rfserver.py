@@ -31,7 +31,7 @@ REGISTER_ISL = 2
 
 
 class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
-    def __init__(self, schema, configfile, islconffile):
+    def __init__(self, schema, configfile, islconffile, rulefile):
         with open(schema) as s:
             print("Reading schema %s" % (schema))
             self.schema = json.load(s)
@@ -53,6 +53,12 @@ class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
         if islcfg != '':
             jsonschema.validate(islcfg, self.schema)
         self.islconf = RFISLConf(islcfg)
+
+        with open(rulefile) as f:
+            print("Reading default ruleset %s" % (rulefile))
+            rules = json.load(f)
+        jsonschema.validate(rules, self.schema)
+        self.ruleset = RFRuleTable(rules)
 
         # Initialise state tables
         self.rftable = RFTable()
@@ -309,79 +315,35 @@ class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
                                                 format_id(entry.dp_id),
                                                 entry.dp_port))
 
-    def send_datapath_config_message(self, ct_id, dp_id, operation_id):
+    def clear_flowtable(self, ct_id, dp_id):
         rm = RouteMod(RMT_ADD, dp_id)
-
-        if operation_id == DC_CLEAR_FLOW_TABLE:
-            rm.set_mod(RMT_DELETE)
-            rm.add_option(Option.PRIORITY(PRIORITY_LOWEST))
-        elif operation_id == DC_DROP_ALL:
-            rm.add_option(Option.PRIORITY(PRIORITY_LOWEST + PRIORITY_BAND))
-            # No action specifies discard
-            pass
-        else:
-            rm.add_option(Option.PRIORITY(PRIORITY_HIGH))
-            if operation_id == DC_RIPV2:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_IP))
-                rm.add_match(Match.NW_PROTO(IPPROTO_UDP))
-                rm.add_match(Match.IPV4(IPADDR_RIPv2, IPV4_MASK_EXACT))
-            elif operation_id == DC_OSPF:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_IP))
-                rm.add_match(Match.NW_PROTO(IPPROTO_OSPF))
-            elif operation_id == DC_ARP:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_ARP))
-            elif operation_id == DC_ICMP:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_IP))
-                rm.add_match(Match.NW_PROTO(IPPROTO_ICMP))
-            elif operation_id == DC_ICMPV6:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_IPV6))
-                rm.add_match(Match.NW_PROTO(IPPROTO_ICMPV6))
-            elif operation_id == DC_BGP_PASSIVE:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_IP))
-                rm.add_match(Match.NW_PROTO(IPPROTO_TCP))
-                rm.add_match(Match.TP_DST(TPORT_BGP))
-            elif operation_id == DC_BGP_ACTIVE:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_IP))
-                rm.add_match(Match.NW_PROTO(IPPROTO_TCP))
-                rm.add_match(Match.TP_SRC(TPORT_BGP))
-            elif operation_id == DC_LDP_PASSIVE:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_IP))
-                rm.add_match(Match.NW_PROTO(IPPROTO_TCP))
-                rm.add_match(Match.TP_DST(TPORT_LDP))
-            elif operation_id == DC_LDP_ACTIVE:
-                rm.add_match(Match.ETHERTYPE(ETHERTYPE_IP))
-                rm.add_match(Match.NW_PROTO(IPPROTO_TCP))
-                rm.add_match(Match.TP_SRC(TPORT_LDP))
-            elif operation_id == DC_VM_INFO:
-                rm.add_match(Match.ETHERTYPE(RF_ETH_PROTO))
-            rm.add_action(Action.CONTROLLER())
-
+        rm.set_mod(RMT_DELETE)
+        rm.add_option(Option.PRIORITY(PRIORITY_LOWEST))
         rm.add_option(Option.CT_ID(ct_id))
         self.ipc.send(RFSERVER_RFPROXY_CHANNEL, str(ct_id), rm)
+
+    def send_rule(self, ct_id, dp_id, routemod):
+        routemod.set_id(dp_id)
+        routemod.add_option(Option.CT_ID(ct_id))
+
+        self.log.info("Sending %s" % routemod)
+        self.ipc.send(RFSERVER_RFPROXY_CHANNEL, str(ct_id), routemod)
 
     def config_dp(self, ct_id, dp_id):
         if is_rfvs(dp_id):
             # TODO: support more than one OVS
-            self.send_datapath_config_message(ct_id, dp_id, DC_ALL)
             self.log.info("Configuring RFVS (dp_id=%s)" % format_id(dp_id))
-        elif self.rftable.is_dp_registered(ct_id, dp_id) or \
-             self.isltable.is_dp_registered(ct_id, dp_id):
-            # Configure a normal switch. Clear the tables and install default
-            # flows.
-            self.send_datapath_config_message(ct_id, dp_id,
-                                              DC_CLEAR_FLOW_TABLE)
-            # TODO: enforce order: clear should always be executed first
-            self.send_datapath_config_message(ct_id, dp_id, DC_DROP_ALL)
-            self.send_datapath_config_message(ct_id, dp_id, DC_OSPF)
-            self.send_datapath_config_message(ct_id, dp_id, DC_BGP_PASSIVE)
-            self.send_datapath_config_message(ct_id, dp_id, DC_BGP_ACTIVE)
-            self.send_datapath_config_message(ct_id, dp_id, DC_RIPV2)
-            self.send_datapath_config_message(ct_id, dp_id, DC_ARP)
-            self.send_datapath_config_message(ct_id, dp_id, DC_ICMP)
-            self.send_datapath_config_message(ct_id, dp_id, DC_ICMPV6)
-            self.send_datapath_config_message(ct_id, dp_id, DC_LDP_PASSIVE)
-            self.send_datapath_config_message(ct_id, dp_id, DC_LDP_ACTIVE)
+            self.log.info("    %d entries" % len(self.ruleset.get_rule_entries(True)))
+            for rule in self.ruleset.get_rule_entries(vs_only=True):
+                self.send_rule(ct_id, dp_id, rule)
+        if self.rftable.is_dp_registered(ct_id, dp_id) or \
+           self.isltable.is_dp_registered(ct_id, dp_id):
             self.log.info("Configuring datapath (dp_id=%s)" % format_id(dp_id))
+            self.clear_flowtable(ct_id, dp_id)
+            # TODO: enforce order: clear should always be executed first
+            self.log.info("    %d entries" % len(self.ruleset.get_rule_entries(False)))
+            for rule in self.ruleset.get_rule_entries(vs_only=False):
+                self.send_rule(ct_id, dp_id, rule)
         return is_rfvs(dp_id)
 
     # DatapathDown methods
@@ -441,17 +403,21 @@ if __name__ == "__main__":
                   'listens for route updates, and configures flow tables'
     epilog = 'Report bugs to: https://github.com/routeflow/RouteFlow/issues'
 
-    config = os.path.dirname(os.path.realpath(__file__)) + "/config.json"
-    islconf = os.path.dirname(os.path.realpath(__file__)) + "/islconf.json"
-    schema = os.path.dirname(os.path.realpath(__file__)) + "/config.schema"
+    path = os.path.dirname(os.path.realpath(__file__))
+    config = path + "/config.json"
+    islconf = path + "/islconf.json"
+    rules = path + "/default-rules.json"
+    schema = path + "/config.schema"
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
     parser.add_argument('configfile', default=config,
                         help='VM-VS-DP mapping configuration file')
     parser.add_argument('-i', '--islconfig', default=islconf,
                         help='ISL mapping configuration file')
+    parser.add_argument('-d', '--default-rules', default=rules,
+                        help='Default flow table for datapaths')
     parser.add_argument('-s', '--schema', default=schema,
                         help='Configuration schema for RFServer')
 
     args = parser.parse_args()
-    RFServer(args.schema, args.configfile, args.islconfig)
+    RFServer(args.schema, args.configfile, args.islconfig, args.default_rules)
