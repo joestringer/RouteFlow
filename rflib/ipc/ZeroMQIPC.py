@@ -4,9 +4,10 @@ import sys
 
 if 'eventlet' in sys.modules:
     from eventlet.green import zmq
-    from rflib.ipc import eventlet_green_zmq_missing
+    __using_eventlet__ = True
 else:
     import zmq
+    __using_eventlet__ = False
 
 from rflib.defs import *
 import rflib.ipc.IPC as IPC
@@ -68,46 +69,76 @@ class ZeroMQIPCMessageService(IPC.IPCMessageService):
         publisher = self._ctx.socket(zmq.PUB)
         publisher.bind(INTERNAL_PUBLISH_CHANNEL)
 
+        def handle_external():
+            # Copy message from external to publisher... however:
+            # message frames are:              <addr>,<channel>,<type>,<msg>
+            # these need to be re-shuffled to: <channel>,<addr>,<type>,<msg>
+            # This is so that the PUB/SUB mechanism can match the channel.
+            parts = external.recv_multipart(copy=False)
+            if len(parts) >= 2:
+                parts[0], parts[1] = parts[1], parts[0]
+                publisher.send_multipart(parts, copy=False)
+
+        def handle_mailbox():
+            # Copy messages from mailbox to external. Retry if sending fails,
+            # as the external socket may take time to connect.
+            parts = mailbox.recv_multipart(copy=False)
+            retry = False
+            for attempt in xrange(1 if bind else 30, 0, -1):
+                try:
+                    external.send_multipart(parts, copy=False)
+                    if retry:
+                        _logger.warning("external send succeeded")
+                    break
+                except zmq.ZMQError as e:
+                    if e.errno == zmq.EHOSTUNREACH:
+                        if attempt > 1:
+                            _logger.warning("external send failed, sleeping")
+                            self._threading.sleep(0.5)
+                            retry = True
+                        else:
+                            _logger.error("external send failed, gave up")
+                            pass # dropped unroutable message
+                    else:
+                        raise
+
+        def loop_external():
+            while True:
+                handle_external()
+
+        def loop_mailbox():
+            while True:
+                handle_mailbox()
+
         self._ready.set()
 
-        # Now, poll both external and sender, and forward messages
-        poller = zmq.Poller()
-        poller.register(external, zmq.POLLIN)
-        poller.register(mailbox, zmq.POLLIN)
+        if __using_eventlet__:
+            # Since all eventlet threads are in the same OS thread, this code
+            # can read from external in one eventlet thread, and write to
+            # external in another. Furthermore, zmq.Poller isn't supported in
+            # eventlet, so this is the easiest way.
+            self._threading.Thread(target=loop_external,
+                                   name="ipc-main-external").start()
+            self._threading.Thread(target=loop_mailbox,
+                                   name="ipc-main-mailbox").start()
+        else:
+            # Since we must read and write external from the same OS thread (a
+            # ZMQ constraint), and we read mailbox to write external, this code,
+            # running in a single OS thread, uses zmq.Poller to poll both
+            # external and mailbox for incoming messages.
+            poller = zmq.Poller()
+            poller.register(external, zmq.POLLIN)
+            poller.register(mailbox, zmq.POLLIN)
 
-        while True:
-            ready = dict(poller.poll())
+            while True:
+                ready = dict(poller.poll())
 
-            if external in ready and ready[external] == zmq.POLLIN:
-                # copy message from external to publisher... however:
-                # message frames are:              <addr>,<channel>,<type>,<msg>
-                # these need to be re-shuffled to: <channel>,<addr>,<type>,<msg>
-                # This is so that the PUB/SUB mechanism can match the channel.
-                parts = external.recv_multipart(copy=False)
-                if len(parts) >= 2:
-                    parts[0], parts[1] = parts[1], parts[0]
-                    publisher.send_multipart(parts, copy=False)
+                if external in ready and ready[external] == zmq.POLLIN:
+                    handle_external()
 
-            if mailbox in ready and ready[mailbox] == zmq.POLLIN:
-                parts = mailbox.recv_multipart(copy=False)
-                retry = False
-                for attempt in xrange(1 if bind else 30, 0, -1):
-                    try:
-                        external.send_multipart(parts, copy=False)
-                        if retry:
-                            _logger.warning("external send succeeded")
-                        break
-                    except zmq.ZMQError as e:
-                        if e.errno == zmq.EHOSTUNREACH:
-                            if attempt > 1:
-                                _logger.warning("external send failed, sleeping")
-                                self._threading.sleep(0.5)
-                                retry = True
-                            else:
-                                _logger.error("external send failed, gave up")
-                                pass # dropped unroutable message
-                        else:
-                            raise
+                if mailbox in ready and ready[mailbox] == zmq.POLLIN:
+                    handle_mailbox()
+
 
 
     def _sub_worker(self, channel_id, factory, processor):
