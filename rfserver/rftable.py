@@ -1,4 +1,5 @@
 from rflib.defs import *
+from rflib.util import load_from_dict, pack_into_dict
 
 if DB_TYPE == 'memory':
     from MemoryTable import MemoryTable as TableBase
@@ -163,15 +164,6 @@ class RFISLConf(EntryTable):
         results = self.get_entries(ct_id=ct, dp_id=id_, dp_port=port)
         results.extend(self.get_entries(rem_ct=ct, rem_id=id_, rem_port=port))
         return results
-
-
-# Convenience functions for packing/unpacking to a dict for BSON representation
-def load_from_dict(src, obj, attr):
-    setattr(obj, attr, src[attr])
-
-
-def pack_into_dict(dest, obj, attr):
-    dest[attr] = getattr(obj, attr)
 
 
 class RFEntry:
