@@ -30,6 +30,10 @@ REGISTER_ISL = 2
 
 class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
     def __init__(self, args):
+        self.log = logging.getLogger("rfserver")
+        if args.verbose:
+            self.log.setLevel(logging.DEBUG)
+
         self.config = RFConfig(args.configfile)
         self.islconf = RFISLConf(args.islconfig)
 
@@ -37,8 +41,7 @@ class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
         self.rftable = RFTable()
         self.isltable = RFISLTable()
 
-        # Logging
-        self.log = logging.getLogger("rfserver")
+        self.log.debug("Initialized RFServer.")
 
         self.ipc = IPCService.for_server(RFSERVER_ID)
         self.ipc.listen(RFCLIENT_RFSERVER_CHANNEL, self, self, False)
@@ -162,8 +165,8 @@ class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
                 return
 
         # If no output action is found, don't forward the routemod.
-        self.log.info("Received RouteMod with no Output Port - Dropping "
-                      "(vm_id=%s)" % (format_id(vm_id)))
+        self.log.warning("Received RouteMod with no Output Port - Dropping "
+                         "(vm_id=%s)" % (format_id(vm_id)))
 
     def _send_rm_with_matches(self, rm, out_port, entries):
         #send entries matching external ports
@@ -427,6 +430,8 @@ if __name__ == "__main__":
                         help='VM-VS-DP mapping configuration file')
     parser.add_argument('-i', '--islconfig', default=islconf,
                         help='ISL mapping configuration file')
+    parser.add_argument('-v', '--verbose', action="store_true", default=False,
+                        help='Sets the maximum logging verbosity level')
 
     args = parser.parse_args()
     RFServer(args)
