@@ -29,9 +29,9 @@ REGISTER_ISL = 2
 
 
 class RFServer(RFProtocolFactory, IPC.IPCMessageProcessor):
-    def __init__(self, configfile, islconffile):
-        self.config = RFConfig(configfile)
-        self.islconf = RFISLConf(islconffile)
+    def __init__(self, args):
+        self.config = RFConfig(args.configfile)
+        self.islconf = RFISLConf(args.islconfig)
 
         # Initialise state tables
         self.rftable = RFTable()
@@ -429,4 +429,4 @@ if __name__ == "__main__":
                         help='ISL mapping configuration file')
 
     args = parser.parse_args()
-    RFServer(args.configfile, args.islconfig)
+    RFServer(args)
