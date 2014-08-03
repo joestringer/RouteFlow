@@ -2,7 +2,16 @@
 *~
 .#*
 .*.swp
-/build/*
+*.a
+*.deps*
+*.o
 *.pyo
 *.pyc
+*Makefile
+*Makefile.in
 /api-mongo/*
+/build/*
+aclocal.m4
+autom4te.cache/
+configure
+config/

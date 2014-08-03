@@ -3,13 +3,13 @@
 
 #include <stdint.h>
 
-#include "IPC.h"
-#include "IPAddress.h"
-#include "MACAddress.h"
 #include "converter.h"
-#include "Action.hh"
-#include "Match.hh"
-#include "Option.hh"
+#include "ipc/IPC.h"
+#include "types/IPAddress.h"
+#include "types/MACAddress.h"
+#include "types/Action.hh"
+#include "types/Match.hh"
+#include "types/Option.hh"
 
 enum {
 	PORT_REGISTER,

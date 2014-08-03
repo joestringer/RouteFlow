@@ -154,13 +154,13 @@ def genH(messages, fname):
     g.blankLine();
     g.addLine("#include <stdint.h>")
     g.blankLine();
-    g.addLine("#include \"IPC.h\"")
-    g.addLine("#include \"IPAddress.h\"")
-    g.addLine("#include \"MACAddress.h\"")
     g.addLine("#include \"converter.h\"")
-    g.addLine("#include \"Action.hh\"")
-    g.addLine("#include \"Match.hh\"")
-    g.addLine("#include \"Option.hh\"")
+    g.addLine("#include \"ipc/IPC.h\"")
+    g.addLine("#include \"types/IPAddress.h\"")
+    g.addLine("#include \"types/MACAddress.h\"")
+    g.addLine("#include \"types/Action.hh\"")
+    g.addLine("#include \"types/Match.hh\"")
+    g.addLine("#include \"types/Option.hh\"")
     g.blankLine();
     enum = "enum {\n\t"
     enum += ",\n\t".join([convmsgtype(name) for name, msg in messages]) 

@@ -143,7 +143,14 @@ build_routeflow() {
     done
 
     if [ $FETCH_ONLY -ne 1 ]; then
-        $DO make rfclient || fail "Couldn't build RouteFlow"
+        $DO ./boot.sh
+        if [ $USE_MONGO -eq 1 ]; then
+            $DO ./configure --with-ipc=mongo --enable-silent-rules --silent
+        else
+            $DO ./configure --with-ipc=zeromq --with-bson=api-mongo \
+                            --enable-silent-rules --silent
+        fi
+        $DO make || fail "Couldn't build RouteFlow"
 
         if [ $INSTALL_VMS -eq 1 ]; then
             $DO cd rftest
