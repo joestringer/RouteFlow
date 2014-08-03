@@ -266,6 +266,7 @@ void usage(char *name) {
            "  -f                Use the FPM interface for route updates\n"
            "  -n <id>           Manually specify client ID in hex\n\n"
            "  -h                Print Help (this message) and exit\n"
+           "  -v                Print the version number and exit\n"
            "\nReport bugs to: https://github.com/routeflow/RouteFlow/issues\n",
            name);
 }
@@ -276,7 +277,7 @@ int main(int argc, char* argv[]) {
     uint64_t id = get_interface_id(DEFAULT_RFCLIENT_INTERFACE);
 
     char c;
-    while ((c = getopt (argc, argv, "a:fi:n:h")) != -1) {
+    while ((c = getopt (argc, argv, "a:fi:n:hv")) != -1) {
         switch(c) {
         case 'a':
             address = optarg;
@@ -292,6 +293,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'h':
             usage(argv[0]);
+            return 0;
+        case 'v':
+            printf("%s %s\n", PACKAGE_NAME, PACKAGE_VERSION);
             return 0;
         default:
             usage(argv[0]);
